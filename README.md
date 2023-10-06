@@ -1,4 +1,4 @@
-# simphony
+# Simphony
 
 1. harmonized state
 2. careful TD3, element-wise minimum between 3 predictions
