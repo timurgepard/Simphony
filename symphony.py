@@ -68,14 +68,6 @@ def testing(env, algo, limit_steps, test_episodes):
         state = harmonize(state)
         rewards = []
 
-        action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-
-        for t in range(0, 8):
-            next_state, reward, done, info, _ = env.step(action)
-            next_state = harmonize(next_state)
-            state = next_state
-            rewards.append(reward)
-
         for steps in range(1,limit_steps+1):
             action = algo.select_action(state, mean=True)
             next_state, reward, done, info , _ = env.step(action)
