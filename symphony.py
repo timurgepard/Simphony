@@ -60,7 +60,7 @@ def harmonize(state):
 
 #testing model
 def testing(env, algo, limit_steps, test_episodes):
-
+    if test_episodes<1: return
     episode_return = []
 
     for test_episode in range(test_episodes):
@@ -83,14 +83,13 @@ def testing(env, algo, limit_steps, test_episodes):
             state = next_state
             rewards.append(reward)
             if done: break
-        print(f"Validation, Rtrn = {np.sum(rewards):.2f}")
 
-    episode_return.append(np.sum(rewards))
+        episode_return.append(np.sum(rewards))
 
-    validate_return = np.mean(episode_return[-100:])
-    print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
+        validate_return = np.mean(episode_return[-100:])
+        print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
 
-    if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
+        if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
 
 
 # Define the actor network
