@@ -416,36 +416,6 @@ for i in range(num_episodes):
             test_rewards = []
 
             testing(env_val, algo, limit_steps, test_episodes)
-
-            for test_episode in range(test_episodes):
-                rewards  = []
-                state = env_val.reset()[0]
-                state = harmonize(state)
-
-                action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-
-                for t in range(0, 8):
-                    next_state, reward, done, info, _ = env.step(action)
-                    next_state = harmonize(next_state)
-                    state = next_state
-                    rewards.append(reward)
-
-                for steps in range(1,limit_steps+1):
-                    action = algo.select_action(state, mean=True)
-                    next_state, reward, done, info , _ = env_val.step(action)
-                    next_state = harmonize(next_state)
-                    rewards.append(reward)
-                    state = next_state
-
-                    if done: break
-                    
-
-                test_rewards.append(np.sum(rewards))
-
-                validate_reward = np.mean(test_rewards[-100:])
-                print(f"trial {test_episode}:, Rtrn = {test_rewards[test_episode]:.2f}, Average 100 = {validate_reward:.2f}")
-
-                if test_episodes==1000 and validate_reward>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
                     
 
         #====================================================
