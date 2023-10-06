@@ -401,8 +401,8 @@ for i in range(num_episodes):
 
         #-----------------validation-------------------------
 
-        if total_rewards[i]>=330 or (i>=200 and i%100==0):
-            test_episodes = 1000 if total_rewards[i]>=330 else 5
+        if total_rewards[i]>=301 or (i>=200 and i%100==0):
+            test_episodes = 1000 if total_rewards[i]>=301 else 5
             env_val = env if test_episodes == 1000 else env_test
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
