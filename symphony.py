@@ -12,14 +12,32 @@ import random
 from collections import deque
 import math
 
+option = 2
 
 
+if option == 1:
+    env = gym.make('BipedalWalker-v3')
+    env_test = gym.make('BipedalWalker-v3', render_mode="human")
+    variable_steps = False
+    clip_steps = 10000
+    limit_steps = 10000
+    explore_time = 5000
+elif option == 2:
+    env = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    variable_steps = True
+    clip_steps = 50
+    limit_steps = 2000
+    explore_time = 5000
+elif option == 3:
+    env = gym.make('Humanoid-v4')
+    env_test = gym.make('Humanoid-v4', render_mode="human")
+    variable_steps = True
+    clip_steps = 200
+    limit_steps = 1000
+    explore_time = 5000
 
-env = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-variable_steps = True
-limit_steps = 30
-start_time = 2000
+
 
 
 # 4 random seeds
@@ -42,36 +60,34 @@ def init_weights(m):
         torch.nn.init.xavier_uniform_(m.weight)
 
 
-#Rectified Hubber Error Loss Function, stabilizes the learning speed
+#Rectified Hubber Error Loss Function
 def ReHE(error):
     ae = torch.abs(error).mean()
     return ae*torch.tanh(ae)
 
-#Rectified Hubber Assymetric Error Loss Function, stabilizes the learning speed
+#Rectified Hubber Assymetric Error Loss Function
 def ReHAE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
-def harmonize(state):
-    sin_part = np.sin(state)
-    cos_part = np.cos(state)
-    sin_cos = sin_part*cos_part
-    return np.concatenate((state, sin_part, cos_part, sin_cos), axis=-1)
+
+
+
+
 
 #testing model
-def testing(env, algo, limit_steps, test_episodes):
+def testing(env, algo, clip_steps, test_episodes):
     if test_episodes<1: return
     episode_return = []
 
     for test_episode in range(test_episodes):
         state = env.reset()[0]
-        state = harmonize(state)
         rewards = []
 
-        for steps in range(1,limit_steps+1):
-            action = algo.select_action(state, mean=True)
+
+        for steps in range(1,clip_steps+1):
+            action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
-            next_state = harmonize(next_state)
             state = next_state
             rewards.append(reward)
             if done: break
@@ -84,6 +100,21 @@ def testing(env, algo, limit_steps, test_episodes):
         if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
 
 
+class FourierTransform(nn.Module):
+    def __init__(self, f_in, f_out):
+        super().__init__()
+        limit = np.sqrt(2 / float(f_in+f_out))
+        self.weights =  nn.Parameter(torch.normal(torch.zeros(f_in, f_out), std=limit))
+        self.bias =  nn.Parameter(torch.normal(torch.zeros(f_out), std=limit))
+
+        
+    def forward(self, input):
+        x = torch.matmul(input, self.weights)+ self.bias
+        return torch.sin(x)
+        
+
+
+
 # Define the actor network
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0):
@@ -93,35 +124,32 @@ class Actor(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, action_dim),
             nn.Tanh()
          )
         
         self.max_action = torch.mean(max_action).item()
-        self.eps = 0.3
+
+        self.eps = 0.3 * self.max_action
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
-
+    
     def accuracy(self):
-        if self.eps<0.01: return False
-        if self.eps>0.1:
-            self.eps = 0.3 * self.max_action * math.exp(-self.x_coor)
-            self.lim = 2.5*self.eps
-            self.x_coor += 3e-5
-        else:
-            self.eps = 0.1
-            self.lim = 2.5*self.eps
-        return True
-        
+        if self.eps>=0.07:
+            with torch.no_grad():
+                self.eps = 0.3 * self.max_action * math.exp(-self.x_coor)
+                self.lim = 2.5*self.eps
+                self.x_coor += 3e-5
+            return True
+        return False
 
-    def forward(self, state, mean=False, extra_noise=False):
+    def forward(self, state, mean=False):
         x = self.max_action*self.net(state)
         if mean: return x
-        if extra_noise and self.accuracy(): return x + (self.eps*self.max_action*torch.randn_like(x)).clamp(-self.lim, self.lim)
-        x += (0.2*self.max_action*torch.randn_like(x)).clamp(-0.5, 0.5)
-        return x.clamp(-1.0, 1.0)
+        if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        return x.clamp(-self.max_action, self.max_action)
 
         
         
@@ -130,10 +158,12 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
+
+
         self.netA = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, 1)
         )
@@ -141,7 +171,7 @@ class Critic(nn.Module):
         self.netB = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, 1)
         )
@@ -149,7 +179,7 @@ class Critic(nn.Module):
         self.netC = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, 1)
         )
@@ -165,21 +195,23 @@ class Critic(nn.Module):
 
 
 
-# we use cache to append transitions, and then update buffer to collect Q Returns, purging cache at the episode end.
+
 class ReplayBuffer:
-    def __init__(self, device, capacity=1000*2560):
+    def __init__(self, device, capacity=100000000):
         self.buffer, self.capacity, self.length =  deque(maxlen=capacity), capacity, 0 #buffer is prioritised limited memory
         self.device = device
-        self.batch_size = min(max(32, self.length//300), 2560) #in order for sample to describe population
+        self.batch_size = min(max(128, self.length//300), 2560) #in order for sample to describe population
         self.random = np.random.default_rng()
 
     
     def add(self, transition):
         self.buffer.append(transition)
         self.length = len(self.buffer)
-        self.batch_size = min(max(32, self.length//300), 2560)
+        self.batch_size = min(max(128, self.length//300), 2560)
+
 
     def sample(self):
+
         indexes = np.array(list(range(self.length)))
         weights = 0.001*(indexes/self.length)
         probs = weights/np.sum(weights)
@@ -196,6 +228,8 @@ class ReplayBuffer:
             torch.FloatTensor(next_states).to(self.device),
             torch.FloatTensor(dones).to(self.device),
         )
+
+
 
     def __len__(self):
         return len(self.buffer)
@@ -216,19 +250,20 @@ class uDDPG(object):
         self.max_action = max_action
         self.device = device
         self.action_dim = action_dim
+        self.q_old_policy = 0.0
 
-
-    def select_action(self, state, mean=False):
+    def select_action(self, state):
         with torch.no_grad():
             state = torch.FloatTensor(state).reshape(-1,state.shape[-1]).to(self.device)
-            action = self.actor(state, mean=mean, extra_noise=True)
+            action = self.actor(state, mean=False)
+            
         return action.cpu().data.numpy().flatten()
 
 
     def train(self, batch):
         state, action, reward, next_state, done = batch
         self.critic_update(state, action, reward, next_state, done)
-        self.actor_update(state)
+        return self.actor_update(state)
 
 
     def critic_update(self, state, action, reward, next_state, done): 
@@ -237,7 +272,7 @@ class uDDPG(object):
             for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
                 target_param.data.copy_(0.997*target_param.data + 0.003*param)
 
-            next_action = self.actor(next_state, mean=False)
+            next_action = self.actor(next_state, mean=True)
             q_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
@@ -248,17 +283,24 @@ class uDDPG(object):
         critic_loss.backward()
         self.critic_optimizer.step()
 
+        
+
 
     def actor_update(self, state):
-
         action = self.actor(state, mean=True)
         q_new_policy = self.critic(state, action, united=True)
-        actor_loss = -q_new_policy
+        actor_loss = -(q_new_policy - self.q_old_policy)
+
         actor_loss = ReHAE(actor_loss)
 
         self.actor_optimizer.zero_grad()
-        actor_loss.backward()
+        actor_loss.backward(retain_graph=True)
         self.actor_optimizer.step()
+
+        with torch.no_grad():
+            self.q_old_policy = q_new_policy.mean().detach()
+
+        return q_new_policy.mean()
 
 
  
@@ -273,7 +315,7 @@ print(device)
 
 
 
-state_dim = 4*env.observation_space.shape[0]
+state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
 
 hidden_dim = 256
@@ -287,16 +329,15 @@ algo = uDDPG(state_dim, action_dim, hidden_dim, device, max_action)
 num_episodes, total_rewards, total_steps, test_rewards, policy_training = 1000000, [], [], [], False
 
 
+
 try:
     print("loading buffer...")
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
         replay_buffer = dict['buffer']
-        algo.actor.eps = dict['eps']
-        algo.actor.x_coor = dict['x_coor']
-        limit_steps = dict['limit_steps']
+        clip_steps = dict['clip_steps']
         total_steps = dict['total_steps']
-        if len(replay_buffer)>=start_time and not policy_training: policy_training = True
+        if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
     print('buffer loaded, buffer length', len(replay_buffer))
 
 except:
@@ -312,18 +353,16 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, limit_steps, 10)
+    testing(env_test, algo, clip_steps, 10)
 
 except:
     print("problem during loading models")
 
 
 
-
 for i in range(num_episodes):
     rewards = []
     state = env.reset()[0]
-    state = harmonize(state)
    
 
     #---------------------------1. processor releave --------------------------
@@ -332,43 +371,38 @@ for i in range(num_episodes):
     #-----------prevents often appearance of the same transitions in buffer-------
 
     #1
-    if policy_training: time.sleep(2.0)
+    if policy_training: time.sleep(0.5)
     #2
-    if not policy_training and len(replay_buffer.buffer)<start_time: algo.actor.apply(init_weights)
+    if not policy_training and len(replay_buffer.buffer)<explore_time: algo.actor.apply(init_weights)
     #3
 
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
 
-    for t in range(0, 8):
+    for steps in range(0, 2):
         next_state, reward, done, info, _ = env.step(action)
-        next_state = harmonize(next_state)
         state = next_state
         rewards.append(reward)
 
     #------------------------------training------------------------------
 
-    for steps in range(1, limit_steps+1):
+    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(min(len(replay_buffer)//100, 200))]
+        
+    action_prev = action
+    for steps in range(1, clip_steps+1):
 
-        if len(replay_buffer.buffer)>=start_time and not policy_training:
+        if len(replay_buffer)>=explore_time and not policy_training:
             print("started training")
             policy_training = True
-            for _ in range(128):
-                algo.train(replay_buffer.sample())
+            q_values = [algo.train(replay_buffer.sample()) for x in range(128)]
 
+                
 
-        action = algo.select_action(state, mean=True)
+        action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
-        next_state = harmonize(next_state)
         replay_buffer.add([state, action, reward, next_state, done])
         rewards.append(reward)
             
-            
-        if policy_training:
-            algo.train(replay_buffer.sample())
-            algo.train(replay_buffer.sample())
-            algo.train(replay_buffer.sample())
-                
-        
+        if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(3)]
         state = next_state
         if done: break
             
@@ -379,7 +413,8 @@ for i in range(num_episodes):
     episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-    if policy_training and variable_steps and limit_steps<=2000: limit_steps = int(average_steps) + 5 + int(0.05*average_steps)**2
+    if policy_training and variable_steps and clip_steps<=limit_steps: clip_steps = int(average_steps) + 5 + int((0.05*average_steps)**2)
+            
 
 
     print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps}")
@@ -395,19 +430,20 @@ for i in range(num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer), end="")
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps': algo.actor.eps, 'x_coor':algo.actor.x_coor, 'limit_steps':limit_steps, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'clip_steps':clip_steps, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
         #-----------------validation-------------------------
 
-        if total_rewards[i]>=301 or (i>=200 and i%100==0):
-            test_episodes = 1000 if total_rewards[i]>=301 else 5
+        if (i>=200 and i%100==0):
+            #test_episodes = 1000 if total_rewards[i]>=301 else 5
+            test_episodes = 10
             env_val = env if test_episodes == 1000 else env_test
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
 
-            testing(env_val, algo, limit_steps, test_episodes)
+            testing(env_val, algo, clip_steps, test_episodes)
                     
 
         #====================================================
