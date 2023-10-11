@@ -12,7 +12,7 @@ import random
 from collections import deque
 import math
 
-option = 2
+option = 3
 
 
 if option == 1:
@@ -32,8 +32,8 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    variable_steps = True
-    clip_steps = 200
+    variable_steps = False
+    clip_steps = 1000
     limit_steps = 1000
     explore_time = 5000
 
@@ -148,7 +148,7 @@ class Actor(nn.Module):
     def forward(self, state, mean=False):
         x = self.max_action*self.net(state)
         if mean: return x
-        if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        #if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
 
         
@@ -385,7 +385,7 @@ for i in range(num_episodes):
 
     #------------------------------training------------------------------
 
-    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(min(len(replay_buffer)//100, 200))]
+    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(200)]
         
     action_prev = action
     for steps in range(1, clip_steps+1):
