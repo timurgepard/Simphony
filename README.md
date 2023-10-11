@@ -1,4 +1,4 @@
-# Simphony
+# Symphony
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
