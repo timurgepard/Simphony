@@ -12,39 +12,46 @@ import random
 from collections import deque
 import math
 
+
 option = 1
+
+human_like = True
+explore_time = 5000
+
+if human_like:
+    tr_between_ep = 0
+    tr_per_step = 3
+    variable_steps = True
+    extra_noise = False
+    stall_penalty = 0.07
+else:
+    tr_between_ep = 200
+    tr_per_step = 3
+    variable_steps = False
+    extra_noise = True
+    stall_penalty = 0.03
+
 
 #global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    variable_steps = False
-    clip_steps = 10000
+    clip_steps = 50 if human_like else 10000
     limit_steps = 10000
-    explore_time = 5000
-    extra_noise = True
-    tr_between_ep = 200
-    tr_per_step = 3
+    
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-    variable_steps = True
     clip_steps = 50
     limit_steps = 2000
-    explore_time = 5000
-    extra_noise = False
-    tr_between_ep = 50
-    tr_per_step = 2
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
     variable_steps = False
-    clip_steps = 1000
-    limit_steps = 1000
-    explore_time = 5000
-    extra_noise = False
-    tr_between_ep = 50
-    tr_per_step = 2
+    clip_steps = 2000
+    limit_steps = 2000
+
+
 
 
 
@@ -107,7 +114,6 @@ def testing(env, algo, clip_steps, test_episodes):
 
         if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
 
-    q_values = [algo.train(replay_buffer.sample()) for x in range(200)]
 
 
 class FourierTransform(nn.Module):
@@ -420,11 +426,14 @@ for i in range(num_episodes):
 
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
+        rewards.append(reward)
         
         delta = np.mean(np.abs(next_state - state))
-        reward_ = reward + 0.03*delta - 0.03*math.log(max(1.0/(delta+1e-6), 1e-3))
+        #moving is life, stalling is dangerous
+        reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
         replay_buffer.add([state, action, reward_, next_state, done])
-        rewards.append(reward)
+        
+
         if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
@@ -436,7 +445,7 @@ for i in range(num_episodes):
     episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-    if policy_training and variable_steps and clip_steps<=limit_steps: clip_steps = int(average_steps) + 5 + int((0.05*average_steps)**2)
+    if policy_training and variable_steps and clip_steps<=limit_steps: clip_steps = int(average_steps) + 5 +  int((0.05*average_steps)**2)
             
 
 
@@ -466,7 +475,7 @@ for i in range(num_episodes):
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
 
-            testing(env_val, algo, clip_steps, test_episodes)
+            testing(env_val, algo, 2000, test_episodes)
                     
 
         #====================================================
