@@ -13,4 +13,5 @@ I wrote a short book with careful explanation:
 6. less priority for older data
 7. random initialization prevent the same initial states in the buffer.
 8. optional: epsilon external-noise and latent noise
-   
+
+   My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
