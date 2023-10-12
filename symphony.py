@@ -13,7 +13,7 @@ from collections import deque
 import math
 
 
-option = 1
+option = 3
 
 human_like = True
 explore_time = 5000
@@ -25,6 +25,7 @@ if human_like:
     extra_noise = False
     stall_penalty = 0.07
 else:
+    #fastest
     tr_between_ep = 200
     tr_per_step = 3
     variable_steps = False
@@ -47,9 +48,9 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    variable_steps = False
-    clip_steps = 2000
+    clip_steps = 50 if human_like else 2000
     limit_steps = 2000
+    tr_between_ep = 70 if human_like else tr_between_ep
 
 
 
