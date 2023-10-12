@@ -50,7 +50,7 @@ elif option == 3:
     env_test = gym.make('Humanoid-v4', render_mode="human")
     clip_steps = 50 if human_like else 2000
     limit_steps = 2000
-    tr_between_ep = 70 if human_like else tr_between_ep
+    tr_between_ep = 30 if human_like else tr_between_ep 
 
 
 
