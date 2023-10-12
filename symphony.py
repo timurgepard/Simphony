@@ -12,9 +12,9 @@ import random
 from collections import deque
 import math
 
-option = 3
+option = 1
 
-
+#global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
@@ -22,6 +22,9 @@ if option == 1:
     clip_steps = 10000
     limit_steps = 10000
     explore_time = 5000
+    extra_noise = True
+    tr_between_ep = 200
+    tr_per_step = 3
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
@@ -29,6 +32,9 @@ elif option == 2:
     clip_steps = 50
     limit_steps = 2000
     explore_time = 5000
+    extra_noise = False
+    tr_between_ep = 50
+    tr_per_step = 2
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
@@ -36,7 +42,9 @@ elif option == 3:
     clip_steps = 1000
     limit_steps = 1000
     explore_time = 5000
-
+    extra_noise = False
+    tr_between_ep = 50
+    tr_per_step = 2
 
 
 
@@ -99,6 +107,8 @@ def testing(env, algo, clip_steps, test_episodes):
 
         if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
 
+    q_values = [algo.train(replay_buffer.sample()) for x in range(200)]
+
 
 class FourierTransform(nn.Module):
     def __init__(self, f_in, f_out):
@@ -137,21 +147,28 @@ class Actor(nn.Module):
         self.x_coor = 0.0
     
     def accuracy(self):
+        if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
                 self.eps = 0.3 * self.max_action * math.exp(-self.x_coor)
                 self.lim = 2.5*self.eps
                 self.x_coor += 3e-5
-            return True
-        return False
+        return True
+
 
     def forward(self, state, mean=False):
         x = self.max_action*self.net(state)
         if mean: return x
-        #if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        if extra_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
 
+class LinearAveraged(nn.Module):
+    def __init__(self, f_in, f_out):
+        super().__init__()
+        self.linear =  nn.Linear(f_in, f_out)
         
+    def forward(self, input):
+        return torch.mean(self.linear(input), dim=-1, keepdim=True)
         
 # Define the critic network
 class Critic(nn.Module):
@@ -165,7 +182,7 @@ class Critic(nn.Module):
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
-            nn.Linear(hidden_dim, 1)
+            LinearAveraged(hidden_dim, action_dim)
         )
 
         self.netB = nn.Sequential(
@@ -173,7 +190,7 @@ class Critic(nn.Module):
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
-            nn.Linear(hidden_dim, 1)
+            LinearAveraged(hidden_dim, action_dim)
         )
 
         self.netC = nn.Sequential(
@@ -181,7 +198,7 @@ class Critic(nn.Module):
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
-            nn.Linear(hidden_dim, 1)
+            LinearAveraged(hidden_dim, action_dim)
         )
 
 
@@ -334,6 +351,8 @@ try:
     print("loading buffer...")
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
+        algo.actor.eps = dict['eps']
+        algo.actor.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
         clip_steps = dict['clip_steps']
         total_steps = dict['total_steps']
@@ -361,6 +380,7 @@ except:
 
 
 for i in range(num_episodes):
+    #if policy_training: env = env_test
     rewards = []
     state = env.reset()[0]
    
@@ -385,7 +405,7 @@ for i in range(num_episodes):
 
     #------------------------------training------------------------------
 
-    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(200)]
+    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
         
     action_prev = action
     for steps in range(1, clip_steps+1):
@@ -394,15 +414,18 @@ for i in range(num_episodes):
             print("started training")
             policy_training = True
             q_values = [algo.train(replay_buffer.sample()) for x in range(128)]
+            
 
                 
 
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
-        replay_buffer.add([state, action, reward, next_state, done])
+        
+        delta = np.mean(np.abs(next_state - state))
+        reward_ = reward + 0.03*delta - 0.03*math.log(max(1.0/(delta+1e-6), 1e-3))
+        replay_buffer.add([state, action, reward_, next_state, done])
         rewards.append(reward)
-            
-        if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(3)]
+        if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
             
@@ -430,7 +453,7 @@ for i in range(num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer), end="")
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'clip_steps':clip_steps, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'clip_steps':clip_steps, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
