@@ -44,12 +44,12 @@ elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
     clip_steps = 50
-    limit_steps = 2000
+    limit_steps = 1000
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
     clip_steps = 50 if human_like else 2000
-    limit_steps = 2000
+    limit_steps = 1000
     tr_between_ep = 30 if human_like else tr_between_ep 
 
 
