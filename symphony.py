@@ -220,7 +220,7 @@ class Critic(nn.Module):
 
 
 class ReplayBuffer:
-    def __init__(self, device, capacity=100000000):
+    def __init__(self, device, capacity=1000000):
         self.buffer, self.capacity, self.length =  deque(maxlen=capacity), capacity, 0 #buffer is prioritised limited memory
         self.device = device
         self.batch_size = min(max(128, self.length//300), 2560) #in order for sample to describe population
@@ -378,7 +378,7 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, clip_steps, 10)
+    testing(env_test, algo, clip_steps, 0)
 
 except:
     print("problem during loading models")
@@ -467,9 +467,9 @@ for i in range(num_episodes):
 
         #-----------------validation-------------------------
 
-        if (i>=200 and i%100==0):
+        if (i>=250 and i%50==0):
             #test_episodes = 1000 if total_rewards[i]>=301 else 5
-            test_episodes = 10
+            test_episodes = 5
             env_val = env if test_episodes == 1000 else env_test
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
