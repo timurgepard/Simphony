@@ -24,6 +24,8 @@ if human_like:
     variable_steps = True
     extra_noise = False
     stall_penalty = 0.07
+    clip_steps = 50
+    limit_steps = 1000
 else:
     #fastest
     tr_between_ep = 200
@@ -31,26 +33,23 @@ else:
     variable_steps = False
     extra_noise = True
     stall_penalty = 0.03
+    clip_steps = 10000
+    limit_steps = 10000
 
 
 #global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    clip_steps = 50 if human_like else 10000
-    limit_steps = 10000
-    
+   
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-    clip_steps = 50
-    limit_steps = 1000
+
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    clip_steps = 50 if human_like else 2000
-    limit_steps = 1000
-    tr_between_ep = 30 if human_like else tr_between_ep 
+    tr_between_ep = 70 if human_like else tr_between_ep
 
 
 
@@ -384,7 +383,7 @@ try:
 except:
     print("problem during loading models")
 
-
+testing(env_test, algo, 2000, 10)
 
 for i in range(num_episodes):
     #if policy_training: env = env_test
