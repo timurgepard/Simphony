@@ -383,7 +383,6 @@ try:
 except:
     print("problem during loading models")
 
-testing(env_test, algo, 2000, 10)
 
 for i in range(num_episodes):
     #if policy_training: env = env_test
