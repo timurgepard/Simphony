@@ -23,7 +23,7 @@ if human_like:
     tr_per_step = 3
     variable_steps = True
     extra_noise = False
-    stall_penalty = 0.07
+    stall_penalty = 0.1
     clip_steps = 50
     limit_steps = 2000
 else:
@@ -49,7 +49,10 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    tr_between_ep = 70 if human_like else tr_between_ep
+    tr_between_ep = 30 if human_like else tr_between_ep
+elif option == 4
+    env = gym.make('Walker2d-v4')
+    env = gym.make('Walker2d-v4', render_mode="human")
 
 
 
