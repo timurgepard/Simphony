@@ -25,7 +25,7 @@ if human_like:
     extra_noise = False
     stall_penalty = 0.07
     clip_steps = 50
-    limit_steps = 1000
+    limit_steps = 2000
 else:
     #fastest
     tr_between_ep = 200
