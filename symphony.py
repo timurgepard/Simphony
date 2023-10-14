@@ -233,13 +233,12 @@ class ReplayBuffer:
         self.buffer.append(transition)
         self.length = len(self.buffer)
         self.batch_size = min(max(128, self.length//300), 2560)
-        self.alpha = 0.001*(self.length/self.capacity)
 
 
     def sample(self):
 
         indexes = np.array(list(range(self.length)))
-        weights = self.alpha*(indexes/self.length)
+        weights = 0.001*(indexes/self.length)
         probs = weights/np.sum(weights)
 
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
