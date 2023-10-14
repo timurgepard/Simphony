@@ -458,7 +458,7 @@ for i in range(num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i>=10 and i%10==0): 
+        if (i%5==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
