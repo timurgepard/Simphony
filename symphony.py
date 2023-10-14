@@ -19,11 +19,12 @@ human_like = True
 explore_time = 5000
 
 if human_like:
+    #gradual
     tr_between_ep = 0
     tr_per_step = 3
     variable_steps = True
     extra_noise = False
-    stall_penalty = 0.1
+    stall_penalty = 0.07
     clip_steps = 50
     limit_steps = 2000
 else:
@@ -49,10 +50,8 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    tr_between_ep = 30 if human_like else tr_between_ep
-elif option == 4:
-    env = gym.make('Walker2d-v4')
-    env = gym.make('Walker2d-v4', render_mode="human")
+
+
 
 
 
@@ -381,7 +380,7 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, clip_steps, 0)
+    testing(env_test, algo, clip_steps, 10)
 
 except:
     print("problem during loading models")
