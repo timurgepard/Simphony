@@ -50,6 +50,7 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
+    tr_between_ep = 30 if human_like else tr_between_ep
 
 
 
