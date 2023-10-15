@@ -6,7 +6,9 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 
 1. harmonized state and network
 2. careful TD3, element-wise minimum between 3 predictions
-3. rectified Huber symmetrical/assymetrical error loss functions
+   updated: element-wise min has exponential decay property. min Q -> min Q -> min Q
+   instead: element-wise min directed towards element-wise mean.
+4. rectified Huber symmetrical/assymetrical error loss functions
 
    additionally:
 5. emphasis on the beginning of training, number of steps grows exponentially
