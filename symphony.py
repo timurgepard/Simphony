@@ -20,7 +20,7 @@ explore_time = 5000
 
 if human_like:
     #gradual
-    tr_between_ep = 0
+    tr_between_ep = 0 # training betwee episodes
     tr_per_step = 3
     variable_steps = True
     extra_noise = False
@@ -36,6 +36,7 @@ else:
     stall_penalty = 0.03
     clip_steps = 10000
     limit_steps = 10000
+    
 
 
 #global parameters
@@ -50,8 +51,10 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    tr_between_ep = 30 if human_like else tr_between_ep
+    clip_steps = 30 if human_like else clip_steps
+    limit_steps = 200 if human_like else limit_steps
     extra_noise = False
+
 
 
 
@@ -185,9 +188,7 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
-
-
-        self.netA = nn.Sequential(
+        self.net = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
@@ -195,46 +196,29 @@ class Critic(nn.Module):
             LinearAveraged(hidden_dim, action_dim)
         )
 
-        self.netB = nn.Sequential(
-            nn.Linear(state_dim+action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            FourierTransform(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.1),
-            LinearAveraged(hidden_dim, action_dim)
-        )
-
-        self.netC = nn.Sequential(
-            nn.Linear(state_dim+action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            FourierTransform(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.1),
-            LinearAveraged(hidden_dim, action_dim)
-        )
+        self.nets = nn.ModuleList([self.net for _ in range(3)])
 
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
-        if not united: return (qA, qB, qC)
-        stack = torch.stack([qA, qB, qC], dim=-1)
-        return torch.min(stack, dim=-1).values
-
-
-
+        xs = [net(x) for net in self.nets]
+        if not united: return xs
+        stack = torch.stack(xs, dim=-1)
+        return 0.997*torch.min(stack, dim=-1).values + 0.03*torch.mean(stack, dim=-1)
 
 
 class ReplayBuffer:
     def __init__(self, device, capacity=1000000):
         self.buffer, self.capacity, self.length =  deque(maxlen=capacity), capacity, 0 #buffer is prioritised limited memory
         self.device = device
-        self.batch_size = min(max(128, self.length//300), 2560) #in order for sample to describe population
+        self.batch_size = min(max(128, self.length//300), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
 
     
     def add(self, transition):
         self.buffer.append(transition)
         self.length = len(self.buffer)
-        self.batch_size = min(max(128, self.length//300), 2560)
+        self.batch_size = min(max(128, self.length//300), 2048)
 
 
     def sample(self):
@@ -303,8 +287,8 @@ class uDDPG(object):
             q_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
-        qA, qB, qC = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
+        qs = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])# + ReHE(q_value - qs[3]) + ReHE(q_value - qs[4]) + ReHE(q_value - qs[5]) + ReHE(q_value - qs[6]) + ReHE(q_value - qs[7])
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -414,7 +398,7 @@ for i in range(num_episodes):
 
     #------------------------------training------------------------------
 
-    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
+    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
         
     action_prev = action
     for steps in range(1, clip_steps+1):
