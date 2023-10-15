@@ -12,7 +12,7 @@ import random
 from collections import deque
 import math
 
-
+#1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
 option = 3
 
 human_like = True
@@ -51,8 +51,9 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
+    tr_between_ep = 30 if human_like else tr_between_ep
     clip_steps = 30 if human_like else clip_steps
-    limit_steps = 200 if human_like else limit_steps
+    limit_steps = 1000 if human_like else limit_steps
     extra_noise = False
 
 
@@ -288,7 +289,7 @@ class uDDPG(object):
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
         qs = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])# + ReHE(q_value - qs[3]) + ReHE(q_value - qs[4]) + ReHE(q_value - qs[5]) + ReHE(q_value - qs[6]) + ReHE(q_value - qs[7])
+        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
