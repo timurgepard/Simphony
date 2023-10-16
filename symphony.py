@@ -152,8 +152,10 @@ class Actor(nn.Module):
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, action_dim),
             nn.Tanh()
-         )
-        
+        )
+
+
+
         self.max_action = torch.mean(max_action).item()
 
         self.eps = 0.3 * self.max_action
@@ -189,22 +191,41 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
-        self.net = nn.Sequential(
+        self.netA = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
             nn.LeakyReLU(0.1),
-            LinearAveraged(hidden_dim, action_dim)
+            nn.Linear(hidden_dim, 1)
         )
 
-        self.nets = nn.ModuleList([self.net for _ in range(3)])
+        self.netB = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, 1)
+        )
+
+        self.netC = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, 1)
+        )
+
+        #self.nets = nn.ModuleList([self.net for _ in range(3)])
 
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        xs = [net(x) for net in self.nets]
-        if not united: return xs
-        return torch.min(torch.stack(xs, dim=-1), dim=-1).values
+        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
+        #xs = [net(x) for net in self.nets]
+        if not united: return (qA, qB, qC)
+        stack = torch.stack([qA, qB, qC], dim=-1)
+        return torch.min(stack, dim=-1).values
+        #return torch.min(torch.stack(xs, dim=-1), dim=-1).values
         #return 0.7*torch.min(stack, dim=-1).values + 0.3*torch.mean(stack, dim=-1)
 
 
@@ -288,8 +309,9 @@ class uDDPG(object):
             q_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
-        qs = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
+        qA, qB, qC = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
+        #critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
