@@ -53,7 +53,7 @@ elif option == 3:
     env_test = gym.make('Humanoid-v4', render_mode="human")
     tr_between_ep = 30 if human_like else tr_between_ep
     clip_steps = 30 if human_like else clip_steps
-    limit_steps = 1000 if human_like else limit_steps
+    limit_steps = 200 if human_like else limit_steps
     extra_noise = False
 
 
@@ -205,7 +205,7 @@ class Critic(nn.Module):
         xs = [net(x) for net in self.nets]
         if not united: return xs
         stack = torch.stack(xs, dim=-1)
-        return 0.97*torch.min(stack, dim=-1).values + 0.03*torch.mean(stack, dim=-1)
+        return 0.997*torch.min(stack, dim=-1).values + 0.003*torch.mean(stack, dim=-1)
 
 
 class ReplayBuffer:
