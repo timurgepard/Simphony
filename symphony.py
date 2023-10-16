@@ -205,7 +205,7 @@ class Critic(nn.Module):
         xs = [net(x) for net in self.nets]
         if not united: return xs
         stack = torch.stack(xs, dim=-1)
-        return 0.997*torch.min(stack, dim=-1).values + 0.003*torch.mean(stack, dim=-1)
+        return torch.min(stack, dim=-1).values
 
 
 class ReplayBuffer:
