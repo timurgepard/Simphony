@@ -15,7 +15,7 @@ import math
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
 option = 3
 
-human_like = True
+human_like = False
 explore_time = 5000
 
 if human_like:
@@ -53,7 +53,7 @@ elif option == 3:
     env_test = gym.make('Humanoid-v4', render_mode="human")
     tr_between_ep = 30 if human_like else tr_between_ep
     clip_steps = 30 if human_like else clip_steps
-    limit_steps = 200 if human_like else limit_steps
+    limit_steps = 200 if human_like else 2000
     extra_noise = False
 
 
@@ -204,8 +204,8 @@ class Critic(nn.Module):
         x = torch.cat([state, action], -1)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        stack = torch.stack(xs, dim=-1)
-        return torch.min(stack, dim=-1).values
+        return torch.min(torch.stack(xs, dim=-1), dim=-1).values
+        #return 0.7*torch.min(stack, dim=-1).values + 0.3*torch.mean(stack, dim=-1)
 
 
 class ReplayBuffer:
