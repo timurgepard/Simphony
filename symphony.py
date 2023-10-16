@@ -20,7 +20,7 @@ explore_time = 5000
 
 if human_like:
     #gradual
-    tr_between_ep = 0 # training betwee episodes
+    tr_between_ep = 30 # training betwee episodes
     tr_per_step = 3
     variable_steps = True
     extra_noise = False
