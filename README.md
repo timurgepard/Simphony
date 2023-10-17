@@ -12,9 +12,9 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 1. harmonization of the neural network
 2. careful TD3, element-wise minimum of 3 predictions.
 3. rectified Huber symmetrical/assymetrical error loss functions
-4. fading replay buffer: old transitions fade away gradually
-
+   
    additionally:
+4. fading replay buffer: old transitions fade away gradually
 5. emphasis on the beginning of training, number of steps grows exponentially
 6. random initialization prevent the same initial states in the buffer.
 7. exploration-noise, reward/punishment, etc
