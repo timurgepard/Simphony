@@ -13,7 +13,7 @@ from collections import deque
 import math
 
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
-option = 2
+option = 1
 
 human_like = True
 explore_time = 4000
@@ -233,11 +233,13 @@ class ReplayBuffer:
         self.length = len(self.buffer)
         self.batch_size = min(max(32, self.length//300), 2048)
 
+    def fade(self, norm_index):
+        return 0.001*np.tanh(3.0*norm_index**2)
 
     def sample(self):
 
         indexes = np.array(list(range(self.length)))
-        weights = 0.001*(indexes/self.length)
+        weights = self.fade(indexes/self.length)
         probs = weights/np.sum(weights)
 
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
