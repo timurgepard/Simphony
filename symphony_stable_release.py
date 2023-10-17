@@ -239,7 +239,7 @@ class ReplayBuffer:
     def sample(self):
 
         indexes = np.array(list(range(self.length)))
-        weights = self.fade(indexes/self.length)
+        weights = self.fade(indexes/self.length) # linear / -> non-linear _/‾
         probs = weights/np.sum(weights)
 
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
