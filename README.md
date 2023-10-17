@@ -17,6 +17,6 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
    additionally:
 5. emphasis on the beginning of training, number of steps grows exponentially
 6. random initialization prevent the same initial states in the buffer.
-7. optional: epsilon external-noise or latent noise
+7. exploration-noise, reward/punishment, etc
 
    My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
