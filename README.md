@@ -16,8 +16,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 
    additionally:
 5. emphasis on the beginning of training, number of steps grows exponentially
-6. less priority for older data
-7. random initialization prevent the same initial states in the buffer.
-8. optional: epsilon external-noise and latent noise
+6. random initialization prevent the same initial states in the buffer.
+7. optional: epsilon external-noise or latent noise
 
    My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
