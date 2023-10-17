@@ -13,27 +13,25 @@ from collections import deque
 import math
 
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
-option = 3
+option = 2
 
-human_like = False
-explore_time = 5000
+human_like = True
+explore_time = 4000
+extra_noise = True #kickstarter during exploration
+stall_penalty = 0.05
 
 if human_like:
     #gradual
     tr_between_ep = 30 # training betwee episodes
     tr_per_step = 3
     variable_steps = True
-    extra_noise = False
-    stall_penalty = 0.07
-    clip_steps = 50
-    limit_steps = 2000
+    clip_steps = 40
+    limit_steps = 400
 else:
-    #fastest
+    #fastestф
     tr_between_ep = 200
     tr_per_step = 3
     variable_steps = False
-    extra_noise = True
-    stall_penalty = 0.03
     clip_steps = 10000
     limit_steps = 10000
     
@@ -51,10 +49,7 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-    tr_between_ep = 30 if human_like else tr_between_ep
-    clip_steps = 30 if human_like else clip_steps
-    limit_steps = 200 if human_like else 2000
-    extra_noise = False
+
 
 
 
@@ -166,9 +161,9 @@ class Actor(nn.Module):
         if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
-                self.eps = 0.3 * self.max_action * math.exp(-self.x_coor)
+                self.eps = 0.3 * self.max_action * (math.cos(self.x_coor) + 1)
                 self.lim = 2.5*self.eps
-                self.x_coor += 3e-5
+                self.x_coor += 7e-5
         return True
 
 
@@ -233,14 +228,14 @@ class ReplayBuffer:
     def __init__(self, device, capacity=1000000):
         self.buffer, self.capacity, self.length =  deque(maxlen=capacity), capacity, 0 #buffer is prioritised limited memory
         self.device = device
-        self.batch_size = min(max(128, self.length//300), 2048) #in order for sample to describe population
+        self.batch_size = min(max(32, self.length//300), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
 
     
     def add(self, transition):
         self.buffer.append(transition)
         self.length = len(self.buffer)
-        self.batch_size = min(max(128, self.length//300), 2048)
+        self.batch_size = min(max(32, self.length//300), 2048)
 
 
     def sample(self):
@@ -396,7 +391,6 @@ except:
 
 
 for i in range(num_episodes):
-    #if policy_training: env = env_test
     rewards = []
     state = env.reset()[0]
    
@@ -425,6 +419,8 @@ for i in range(num_episodes):
         
     action_prev = action
     for steps in range(1, clip_steps+1):
+
+        
 
         if len(replay_buffer)>=explore_time and not policy_training:
             print("started training")
@@ -480,12 +476,12 @@ for i in range(num_episodes):
 
         if (i>=250 and i%50==0):
             #test_episodes = 1000 if total_rewards[i]>=301 else 5
-            test_episodes = 5
+            test_episodes = 10
             env_val = env if test_episodes == 1000 else env_test
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
 
-            testing(env_val, algo, 2000, test_episodes)
+            testing(env_val, algo, 1000, test_episodes)
                     
 
         #====================================================
