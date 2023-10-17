@@ -28,7 +28,7 @@ if human_like:
     clip_steps = 40
     limit_steps = 400
 else:
-    #fastestф
+    #fastest
     tr_between_ep = 200
     tr_per_step = 3
     variable_steps = False
@@ -408,7 +408,7 @@ for i in range(num_episodes):
 
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
 
-    for steps in range(0, 2):
+    for steps in range(0, 8):
         next_state, reward, done, info, _ = env.step(action)
         state = next_state
         rewards.append(reward)
