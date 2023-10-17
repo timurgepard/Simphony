@@ -9,7 +9,7 @@ BipedalWalker-v3 in robot_like mode:
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
-1. harmonization of state and network
+1. harmonization of the neural network
 2. careful TD3, element-wise minimum of 3 predictions.
 3. rectified Huber symmetrical/assymetrical error loss functions: ReHAE(-(q_new - q_prev))
 4. fading replay buffer: old transitions fade away gradually
