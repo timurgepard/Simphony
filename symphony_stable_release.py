@@ -15,10 +15,10 @@ import math
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
 option = 1
 
-human_like = True
+human_like = False
 explore_time = 4000
 extra_noise = True #kickstarter during exploration
-stall_penalty = 0.05
+stall_penalty = 0.03
 
 if human_like:
     #gradual
@@ -153,7 +153,7 @@ class Actor(nn.Module):
 
         self.max_action = torch.mean(max_action).item()
 
-        self.eps = 0.3 * self.max_action
+        self.eps = 0.2 * self.max_action
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
     
@@ -161,7 +161,7 @@ class Actor(nn.Module):
         if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
-                self.eps = 0.3 * self.max_action * (math.cos(self.x_coor) + 1)
+                self.eps = 0.2 * self.max_action * (math.cos(self.x_coor) + 1)
                 self.lim = 2.5*self.eps
                 self.x_coor += 7e-5
         return True
@@ -304,7 +304,7 @@ class uDDPG(object):
 
         qA, qB, qC = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
-        #critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
+
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -386,6 +386,7 @@ try:
 
 except:
     print("problem during loading models")
+
 
 
 for i in range(num_episodes):
