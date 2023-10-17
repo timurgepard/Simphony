@@ -22,13 +22,13 @@ stall_penalty = 0.05
 
 if human_like:
     #gradual
-    tr_between_ep = 30 # training betwee episodes
+    tr_between_ep = 30 # training between episodes
     tr_per_step = 3
     variable_steps = True
     clip_steps = 40
     limit_steps = 400
 else:
-    #fastest
+    #fastest, for option 1, 3
     tr_between_ep = 200
     tr_per_step = 3
     variable_steps = False
@@ -210,18 +210,14 @@ class Critic(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
-        #self.nets = nn.ModuleList([self.net for _ in range(3)])
-
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
         qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
-        #xs = [net(x) for net in self.nets]
         if not united: return (qA, qB, qC)
         stack = torch.stack([qA, qB, qC], dim=-1)
         return torch.min(stack, dim=-1).values
-        #return torch.min(torch.stack(xs, dim=-1), dim=-1).values
-        #return 0.7*torch.min(stack, dim=-1).values + 0.3*torch.mean(stack, dim=-1)
+
 
 
 class ReplayBuffer:
