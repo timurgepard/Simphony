@@ -12,7 +12,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 1. harmonization of state and network
 2. careful TD3, element-wise minimum of 3 predictions.
 3. rectified Huber symmetrical/assymetrical error loss functions: ReHAE(-(q_new - q_prev))
-4. fading replay buffer
+4. fading replay buffer: old transitions fade away gradually
 
    additionally:
 5. emphasis on the beginning of training, number of steps grows exponentially
