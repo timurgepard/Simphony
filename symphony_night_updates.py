@@ -12,37 +12,41 @@ import random
 from collections import deque
 import math
 
+#global parameters
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
-option = 1
+option = 2
 
-human_like = True
+
 explore_time = 4000
-explore_noise = 0.3 #kickstarter during exploration, due to shifted cosine 2x.
+explore_noise = 0.2 #kickstarter during exploration
 stall_penalty = 0.1
+tr_between_ep = 200
+tr_per_step = 3
+variable_steps = False
+clip_step = 1000
+limit_steps = 1000
+start_validate = 50
+fade_factor = 10 #1 almost linear, 10 remembers half, 100 remembers almost everything
+
+hidden_dim = 256
 
 
-
-if human_like:
-    #gradual
+human_like = False
+if human_like: #gradual learning
     tr_between_ep = 0 # training between episodes
-    tr_per_step = 3
     variable_steps = True
-    start_steps = 40
-    limit_steps = 400
-else:
-    #fastest, for option 1, 3
-    tr_between_ep = 200
-    tr_per_step = 3
-    variable_steps = False
-    start_steps = 400
-    limit_steps = 400    
+    clip_step = 40
+    limit_steps = 500
+    start_validate = 250 
+ 
 
 
 #global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-
+    clip_step = 10000 if human_like else clip_step
+    limit_steps = 10000 if human_like else clip_step
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
@@ -91,7 +95,7 @@ def ReHAE(error):
 
 
 #testing model
-def testing(env, algo, replay_buffer, start_steps, test_episodes):
+def testing(env, algo, replay_buffer, clip_step, test_episodes):
     if test_episodes<1: return
     episode_return = []
 
@@ -100,7 +104,7 @@ def testing(env, algo, replay_buffer, start_steps, test_episodes):
         rewards = []
 
 
-        for steps in range(1,start_steps+1):
+        for steps in range(1,clip_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
             
@@ -230,7 +234,7 @@ class ReplayBuffer:
         self.batch_size = min(max(32, self.length//300), 2048)
 
     def fade(self, norm_index):
-        return 0.001*np.tanh(10.0*norm_index**2)
+        return 0.001*np.tanh(fade_factor*norm_index**2)
 
     def sample(self):
 
@@ -341,7 +345,7 @@ print(device)
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
 
-hidden_dim = 256
+
 
 print('action space high', env.action_space.high)
 
@@ -360,7 +364,7 @@ try:
         algo.actor.eps = dict['eps']
         algo.actor.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
-        start_steps = dict['start_steps']
+        clip_step = dict['clip_step']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
         if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
@@ -381,7 +385,7 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, start_steps, 10)
+    testing(env_test, algo, replay_buffer, clip_step, 10)
 
 except:
     print("problem during loading models")
@@ -416,7 +420,7 @@ for i in range(start_episode, num_episodes):
     if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
         
 
-    for steps in range(1, start_steps+1):
+    for steps in range(1, clip_step+1):
 
         
 
@@ -449,7 +453,7 @@ for i in range(start_episode, num_episodes):
     episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-    if policy_training and variable_steps and start_steps<=limit_steps: start_steps = int(average_steps) + 5 +  int((0.05*average_steps)**2)
+    if policy_training and variable_steps and clip_step<=limit_steps: clip_step = int(average_steps) + 5 +  int((0.05*average_steps)**2)
             
 
 
@@ -466,12 +470,11 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer), end="")
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'start_steps':start_steps, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'clip_step':clip_step, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
         #-----------------validation-------------------------
-        start_validate = 250 if human_like else 50
         if (i>=start_validate and i%50==0):
             #test_episodes = 1000 if total_rewards[i]>=301 else 5
             test_episodes = 10
@@ -479,7 +482,7 @@ for i in range(start_episode, num_episodes):
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
 
-            testing(env_val, algo, 1000, test_episodes)
+            testing(env_val, algo, replay_buffer, 1000, test_episodes)
                     
 
         #====================================================
