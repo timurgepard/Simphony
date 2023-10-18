@@ -19,25 +19,24 @@ option = 2
 
 explore_time = 4000
 explore_noise = 0.2 #kickstarter during exploration
-stall_penalty = 0.1
-tr_between_ep = 200
-tr_per_step = 3
-variable_steps = False
+stall_penalty = 0.05
+tr_between_ep = 200 # training between episodes
+tr_per_step = 3 # training per frame
+variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
-start_validate = 50
+start_validate = 100
 fade_factor = 10 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
 
 
-human_like = False
+human_like = True
 if human_like: #gradual learning
-    tr_between_ep = 0 # training between episodes
+    tr_between_ep = 0 
     variable_steps = True
     clip_step = 40
-    limit_steps = 500
-    start_validate = 250 
+    start_validate = 250
  
 
 
@@ -45,8 +44,8 @@ if human_like: #gradual learning
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    clip_step = 10000 if human_like else clip_step
-    limit_steps = 10000 if human_like else clip_step
+    clip_step = 10000 if not human_like else clip_step
+    limit_steps = 10000 if not human_like else clip_step
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
@@ -103,17 +102,24 @@ def testing(env, algo, replay_buffer, clip_step, test_episodes):
         state = env.reset()[0]
         rewards = []
 
+        for steps in range(0, 8):
+            action = algo.select_action(state)
+            next_state, reward, done, info, _ = env.step(action)
+            rewards.append(reward)
+            state = next_state
+            
 
         for steps in range(1,clip_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
+            rewards.append(reward)
             
             delta = np.mean(np.abs(next_state - state))
             reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
-            replay_buffer.add([state, action, reward_, next_state, done])
+            replay_buffer.add([state, action, reward_, next_state, done], rewards)
             
             state = next_state
-            rewards.append(reward)
+            
             if done: break
 
         episode_return.append(np.sum(rewards))
@@ -226,20 +232,23 @@ class ReplayBuffer:
         self.device = device
         self.batch_size = min(max(32, self.length//300), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
+        self.weights = deque(maxlen=capacity)
 
     
-    def add(self, transition):
+    def add(self, transition, rewards):
         self.buffer.append(transition)
+        self.weights.append(1e-12 * (1e+3+sum(rewards[-9:-1]))) #cheap information on short returns without terminal rewards, strongly squashed, nano-bumps
         self.length = len(self.buffer)
         self.batch_size = min(max(32, self.length//300), 2048)
+        
 
     def fade(self, norm_index):
-        return 0.001*np.tanh(fade_factor*norm_index**2)
+        return 1e-3*np.tanh(fade_factor*norm_index**2) # linear / -> non-linear _/‾
 
     def sample(self):
 
         indexes = np.array(list(range(self.length)))
-        weights = self.fade(indexes/self.length) # linear / -> non-linear _/‾
+        weights = self.fade(indexes/self.length) + self.weights
         probs = weights/np.sum(weights)
 
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
@@ -385,7 +394,7 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, replay_buffer, clip_step, 10)
+    #testing(env_test, algo, replay_buffer, clip_step, 10)
 
 except:
     print("problem during loading models")
@@ -439,7 +448,7 @@ for i in range(start_episode, num_episodes):
         delta = np.mean(np.abs(next_state - state))
         #moving is life, stalling is dangerous
         reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
-        replay_buffer.add([state, action, reward_, next_state, done])
+        replay_buffer.add([state, action, reward_, next_state, done], rewards)
         
 
         if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
