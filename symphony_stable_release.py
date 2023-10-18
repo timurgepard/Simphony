@@ -15,33 +15,39 @@ import math
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
 option = 1
 
-human_like = False
-explore_time = 4000
-extra_noise = True #kickstarter during exploration
-stall_penalty = 0.03
 
-if human_like:
-    #gradual
-    tr_between_ep = 30 # training between episodes
-    tr_per_step = 3
+explore_time = 4000
+explore_noise = 0.2 #kickstarter during exploration
+stall_penalty = 0.03
+tr_between_ep = 200
+tr_per_step = 3
+variable_steps = False
+clip_step = 1000
+limit_steps = 1000
+start_validate = 50
+fade_factor = 3 #1 almost linear, 10 remembers half, 100 remembers almost everything
+
+
+human_like = False
+if human_like: #gradual learning
+    tr_between_ep = 0 # training between episodes
     variable_steps = True
-    clip_steps = 40
-    limit_steps = 400
-else:
-    #fastest, for option 1, 3
-    tr_between_ep = 200
-    tr_per_step = 3
-    variable_steps = False
-    clip_steps = 10000
-    limit_steps = 10000
+    clip_step = 40
+    start_validate = 250 
+ 
     
+    
+  
 
 
 #global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-   
+
+    clip_step = 10000 if not human_like else clip_step
+    limit_steps = 10000 if not human_like else limit_steps
+
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
@@ -49,6 +55,8 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
+
+    tr_between_ep = 30 if human_like else tr_between_ep
 
 
 
@@ -94,7 +102,7 @@ def ReHAE(error):
 
 
 #testing model
-def testing(env, algo, clip_steps, test_episodes):
+def testing(env, algo, clip_step, test_episodes):
     if test_episodes<1: return
     episode_return = []
 
@@ -103,7 +111,7 @@ def testing(env, algo, clip_steps, test_episodes):
         rewards = []
 
 
-        for steps in range(1,clip_steps+1):
+        for steps in range(1,clip_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
             state = next_state
@@ -153,7 +161,7 @@ class Actor(nn.Module):
 
         self.max_action = torch.mean(max_action).item()
 
-        self.eps = 0.2 * self.max_action
+        self.eps = 1.0
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
     
@@ -161,7 +169,7 @@ class Actor(nn.Module):
         if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
-                self.eps = 0.2 * self.max_action * (math.cos(self.x_coor) + 1)
+                self.eps = explore_noise * self.max_action * (math.cos(self.x_coor) + 1)
                 self.lim = 2.5*self.eps
                 self.x_coor += 7e-5
         return True
@@ -170,16 +178,10 @@ class Actor(nn.Module):
     def forward(self, state, mean=False):
         x = self.max_action*self.net(state)
         if mean: return x
-        if extra_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        if explore_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
 
-class LinearAveraged(nn.Module):
-    def __init__(self, f_in, f_out):
-        super().__init__()
-        self.linear =  nn.Linear(f_in, f_out)
-        
-    def forward(self, input):
-        return torch.mean(self.linear(input), dim=-1, keepdim=True)
+
         
 # Define the critic network
 class Critic(nn.Module):
@@ -234,7 +236,7 @@ class ReplayBuffer:
         self.batch_size = min(max(32, self.length//300), 2048)
 
     def fade(self, norm_index):
-        return 0.001*np.tanh(3.0*norm_index**2)
+        return 0.001*np.tanh(fade_factor*norm_index**2)
 
     def sample(self):
 
@@ -353,7 +355,7 @@ max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_s
 replay_buffer = ReplayBuffer(device)
 algo = uDDPG(state_dim, action_dim, hidden_dim, device, max_action)
 
-num_episodes, total_rewards, total_steps, test_rewards, policy_training = 1000000, [], [], [], False
+num_episodes, start_episode, total_rewards, total_steps, test_rewards, policy_training = 1000000, 0, [], [], [], False
 
 
 
@@ -364,10 +366,13 @@ try:
         algo.actor.eps = dict['eps']
         algo.actor.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
-        clip_steps = dict['clip_steps']
+        clip_step = dict['clip_step']
+        total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
         if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
     print('buffer loaded, buffer length', len(replay_buffer))
+
+    start_episode = len(total_steps) - 1
 
 except:
     print("problem during loading buffer")
@@ -382,14 +387,14 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, clip_steps, 10)
+    testing(env_test, algo, clip_step, 10)
 
 except:
     print("problem during loading models")
 
 
 
-for i in range(num_episodes):
+for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
    
@@ -417,7 +422,7 @@ for i in range(num_episodes):
     if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
         
     action_prev = action
-    for steps in range(1, clip_steps+1):
+    for steps in range(1, clip_step+1):
 
         
 
@@ -450,7 +455,7 @@ for i in range(num_episodes):
     episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-    if policy_training and variable_steps and clip_steps<=limit_steps: clip_steps = int(average_steps) + 5 +  int((0.05*average_steps)**2)
+    if policy_training and variable_steps and clip_step<=limit_steps: clip_step = int(average_steps) + 5 +  int((0.05*average_steps)**2)
             
 
 
@@ -467,13 +472,13 @@ for i in range(num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer), end="")
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'clip_steps':clip_steps, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'clip_step':clip_step, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
         #-----------------validation-------------------------
 
-        if (i>=250 and i%50==0):
+        if (i>=start_validate and i%50==0):
             #test_episodes = 1000 if total_rewards[i]>=301 else 5
             test_episodes = 10
             env_val = env if test_episodes == 1000 else env_test
