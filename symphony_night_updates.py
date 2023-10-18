@@ -17,31 +17,32 @@ option = 1
 
 human_like = True
 explore_time = 4000
-extra_noise = True #kickstarter during exploration
-stall_penalty = 0.05
+explore_noise = 0.3 #kickstarter during exploration, due to shifted cosine 2x.
+stall_penalty = 0.1
+
+
 
 if human_like:
     #gradual
-    tr_between_ep = 30 # training between episodes
+    tr_between_ep = 0 # training between episodes
     tr_per_step = 3
     variable_steps = True
-    clip_steps = 40
+    start_steps = 40
     limit_steps = 400
 else:
     #fastest, for option 1, 3
     tr_between_ep = 200
     tr_per_step = 3
     variable_steps = False
-    clip_steps = 10000
-    limit_steps = 10000
-    
+    start_steps = 400
+    limit_steps = 400    
 
 
 #global parameters
 if option == 1:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-   
+
 elif option == 2:
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
@@ -49,11 +50,7 @@ elif option == 2:
 elif option == 3:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
-
-
-
-
-
+    tr_between_ep = 30 if human_like else tr_between_ep
 
 
 
@@ -94,7 +91,7 @@ def ReHAE(error):
 
 
 #testing model
-def testing(env, algo, clip_steps, test_episodes):
+def testing(env, algo, replay_buffer, start_steps, test_episodes):
     if test_episodes<1: return
     episode_return = []
 
@@ -103,9 +100,14 @@ def testing(env, algo, clip_steps, test_episodes):
         rewards = []
 
 
-        for steps in range(1,clip_steps+1):
+        for steps in range(1,start_steps+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
+            
+            delta = np.mean(np.abs(next_state - state))
+            reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+            replay_buffer.add([state, action, reward_, next_state, done])
+            
             state = next_state
             rewards.append(reward)
             if done: break
@@ -115,7 +117,7 @@ def testing(env, algo, clip_steps, test_episodes):
         validate_return = np.mean(episode_return[-100:])
         print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
 
-        if test_episodes==1000 and validate_return>=300: print("Average of 100 trials = 300 !!!CONGRATULATIONS!!!")
+    q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
 
 
 
@@ -153,7 +155,7 @@ class Actor(nn.Module):
 
         self.max_action = torch.mean(max_action).item()
 
-        self.eps = 0.3 * self.max_action
+        self.eps = 1.0
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
     
@@ -161,7 +163,7 @@ class Actor(nn.Module):
         if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
-                self.eps = 0.3 * self.max_action * (math.cos(self.x_coor) + 1)
+                self.eps = explore_noise * self.max_action * (math.cos(self.x_coor) + 1)
                 self.lim = 2.5*self.eps
                 self.x_coor += 7e-5
         return True
@@ -170,16 +172,10 @@ class Actor(nn.Module):
     def forward(self, state, mean=False):
         x = self.max_action*self.net(state)
         if mean: return x
-        if extra_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        if explore_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
 
-class LinearAveraged(nn.Module):
-    def __init__(self, f_in, f_out):
-        super().__init__()
-        self.linear =  nn.Linear(f_in, f_out)
-        
-    def forward(self, input):
-        return torch.mean(self.linear(input), dim=-1, keepdim=True)
+
         
 # Define the critic network
 class Critic(nn.Module):
@@ -234,7 +230,7 @@ class ReplayBuffer:
         self.batch_size = min(max(32, self.length//300), 2048)
 
     def fade(self, norm_index):
-        return 0.001*np.tanh(3.0*norm_index**2)
+        return 0.001*np.tanh(10.0*norm_index**2)
 
     def sample(self):
 
@@ -304,7 +300,7 @@ class uDDPG(object):
 
         qA, qB, qC = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
-        #critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
+
 
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
@@ -353,7 +349,7 @@ max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_s
 replay_buffer = ReplayBuffer(device)
 algo = uDDPG(state_dim, action_dim, hidden_dim, device, max_action)
 
-num_episodes, total_rewards, total_steps, test_rewards, policy_training = 1000000, [], [], [], False
+num_episodes, start_episode, total_rewards, total_steps, test_rewards, policy_training = 1000000, 0, [], [], [], False
 
 
 
@@ -364,10 +360,13 @@ try:
         algo.actor.eps = dict['eps']
         algo.actor.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
-        clip_steps = dict['clip_steps']
+        start_steps = dict['start_steps']
+        total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
         if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
     print('buffer loaded, buffer length', len(replay_buffer))
+
+    start_episode = len(total_steps) - 1
 
 except:
     print("problem during loading buffer")
@@ -382,13 +381,14 @@ try:
 
     print('models loaded')
 
-    testing(env_test, algo, clip_steps, 10)
+    testing(env_test, algo, start_steps, 10)
 
 except:
     print("problem during loading models")
 
 
-for i in range(num_episodes):
+
+for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
    
@@ -415,8 +415,8 @@ for i in range(num_episodes):
 
     if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
         
-    action_prev = action
-    for steps in range(1, clip_steps+1):
+
+    for steps in range(1, start_steps+1):
 
         
 
@@ -449,7 +449,7 @@ for i in range(num_episodes):
     episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-    if policy_training and variable_steps and clip_steps<=limit_steps: clip_steps = int(average_steps) + 5 +  int((0.05*average_steps)**2)
+    if policy_training and variable_steps and start_steps<=limit_steps: start_steps = int(average_steps) + 5 +  int((0.05*average_steps)**2)
             
 
 
@@ -466,13 +466,13 @@ for i in range(num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer), end="")
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'clip_steps':clip_steps, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'start_steps':start_steps, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
         #-----------------validation-------------------------
-
-        if (i>=250 and i%50==0):
+        start_validate = 250 if human_like else 50
+        if (i>=start_validate and i%50==0):
             #test_episodes = 1000 if total_rewards[i]>=301 else 5
             test_episodes = 10
             env_val = env if test_episodes == 1000 else env_test
