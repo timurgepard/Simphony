@@ -14,24 +14,24 @@ import math
 
 #global parameters
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
-option = 3
-
+option = 2
+human_like = True #if False fastest, if True gradual
 
 explore_time = 4000
 explore_noise = 0.2 #kickstarter during exploration
-stall_penalty = 0.03
+stall_penalty = 0.05
 tr_between_ep = 200 # training between episodes
 tr_per_step = 3 # training per frame
 variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
 start_validate = 100
-fade_factor = 10 #1 almost linear, 10 remembers half, 100 remembers almost everything
+fade_factor = 3 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
 
 
-human_like = False
+
 if human_like: #gradual learning
     tr_between_ep = 0 
     variable_steps = True
@@ -102,12 +102,22 @@ def testing(env, algo, replay_buffer, clip_step, test_episodes):
         state = env.reset()[0]
         rewards = []
 
+        for steps in range(0, 8):
+            action = algo.select_action(state)
+            next_state, reward, done, info, _ = env.step(action)
+            rewards.append(reward)
+            state = next_state
+            
 
         for steps in range(1,clip_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
-           
+            
+            delta = np.mean(np.abs(next_state - state))
+            reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+            replay_buffer.add([state, action, reward_, next_state, done], rewards)
+            
             state = next_state
             
             if done: break
@@ -117,7 +127,7 @@ def testing(env, algo, replay_buffer, clip_step, test_episodes):
         validate_return = np.mean(episode_return[-100:])
         print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
 
-    #q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
+    q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
 
 
 
@@ -222,23 +232,28 @@ class ReplayBuffer:
         self.device = device
         self.batch_size = min(max(32, self.length//300), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
-        #self.weights = deque(maxlen=capacity)
+        self.values = []
+        self.gamma = [0.9**x for x in range(8,0,-1)]
 
+    #cheap information on short retrace without terminal rewards, strongly squashed
+    def discounted_sum(self, rewards):
+        discounted_rewards = [g*x for g,x in zip(self.gamma, rewards[-9:-1])]
+        return 1e-3 * (1000.0 + sum(discounted_rewards))/1000.0
     
     def add(self, transition, rewards):
         self.buffer.append(transition)
-        #self.weights.append(1e-12 * (1e+3+sum(rewards[-9:-1]))) #cheap information on short returns without terminal rewards, strongly squashed, nano-bumps
+        
         self.length = len(self.buffer)
         self.batch_size = min(max(32, self.length//300), 2048)
-        
+        if self.length<self.capacity: self.values.append(self.discounted_sum(rewards))
 
     def fade(self, norm_index):
-        return 1e-3*np.tanh(fade_factor*norm_index**2) # linear / -> non-linear _/‾
+        return np.tanh(fade_factor*norm_index**2) # linear / -> non-linear _/‾
 
     def sample(self):
 
         indexes = np.array(list(range(self.length)))
-        weights = self.fade(indexes/self.length)# + self.weights
+        weights = 1e-3*(self.fade(indexes/self.length) + self.values)
         probs = weights/np.sum(weights)
 
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
