@@ -26,7 +26,7 @@ variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
 start_validate = 100
-fade_factor = 3 #1 almost linear, 10 remembers half, 100 remembers almost everything
+fade_factor = 5 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
 
@@ -238,7 +238,7 @@ class ReplayBuffer:
     #cheap information on short retrace without terminal rewards, strongly squashed
     def discounted_sum(self, rewards):
         discounted_rewards = [g*x for g,x in zip(self.gamma, rewards[-9:-1])]
-        return 1e-3 * (1000.0 + sum(discounted_rewards))/1000.0
+        return 1e-6 * (1000.0 + sum(discounted_rewards))/1000.0
     
     def add(self, transition, rewards):
         self.buffer.append(transition)
