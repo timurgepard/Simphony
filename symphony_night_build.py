@@ -25,7 +25,7 @@ tr_per_step = 3 # training per frame
 variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
-start_validate = 100
+start_validate = 250
 fade_factor = 5 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
