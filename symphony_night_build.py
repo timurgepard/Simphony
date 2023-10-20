@@ -25,11 +25,15 @@ tr_per_step = 3 # training per frame
 variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
-start_validate = 250
+start_validate = 100
 fade_factor = 5 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
 
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cpu"
+        
+print(device)
 
 
 if human_like: #gradual learning
@@ -219,7 +223,9 @@ class Critic(nn.Module):
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
+        qA = self.netA(x)
+        qB = self.netB(x)
+        qC = self.netC(x)
         if not united: return (qA, qB, qC)
         stack = torch.stack([qA, qB, qC], dim=-1)
         return torch.min(stack, dim=-1).values
@@ -346,13 +352,6 @@ class uDDPG(object):
 
  
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-if device == "cuda":
-    if torch.cuda.device_count() > 1:
-        print(torch.cuda.device_count())
-        
-print(device)
 
 
 
