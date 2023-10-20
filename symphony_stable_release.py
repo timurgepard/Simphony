@@ -12,11 +12,6 @@ import random
 from collections import deque
 import math
 
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#print(device)
-
-device = "cpu"
-
 #global parameters
 #1 BipedalWalker, 2 BipedalWalkerHardcore, 3 Humanoid
 option = 2
@@ -31,7 +26,7 @@ variable_steps = False # if True steps are limited by average value + window
 clip_step = 1000
 limit_steps = 1000
 start_validate = 250
-
+fade_factor = 5 #1 almost linear, 10 remembers half, 100 remembers almost everything
 
 hidden_dim = 256
 
@@ -41,7 +36,7 @@ if human_like: #gradual learning
     tr_between_ep = 0 
     variable_steps = True
     clip_step = 40
-
+    start_validate = 250
  
 
 
@@ -86,12 +81,12 @@ def init_weights(m):
 #Rectified Hubber Error Loss Function
 def ReHE(error):
     ae = torch.abs(error).mean()
-    return ae*torch.tanh(ae/2)
+    return ae*torch.tanh(ae)
 
 #Rectified Hubber Assymetric Error Loss Function
 def ReHAE(error):
     e = error.mean()
-    return torch.abs(e)*torch.tanh(e/2)
+    return torch.abs(e)*torch.tanh(e)
 
 
 
@@ -99,7 +94,7 @@ def ReHAE(error):
 
 
 #testing model
-def testing(env, clip_step, test_episodes):
+def testing(env, algo, replay_buffer, clip_step, test_episodes):
     if test_episodes<1: return
     episode_return = []
 
@@ -107,12 +102,24 @@ def testing(env, clip_step, test_episodes):
         state = env.reset()[0]
         rewards = []
 
-        for _ in range(1,clip_step+1):
+        for steps in range(0, 8):
+            action = algo.select_action(state)
+            next_state, reward, done, info, _ = env.step(action)
+            rewards.append(reward)
+            state = next_state
+            
+
+        for steps in range(1,clip_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
-            #replay_buffer.add([state, action, reward_, next_state, done])
+            
+            delta = np.mean(np.abs(next_state - state))
+            reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+            replay_buffer.add([state, action, reward_, next_state, done], rewards)
+            
             state = next_state
+            
             if done: break
 
         episode_return.append(np.sum(rewards))
@@ -120,8 +127,8 @@ def testing(env, clip_step, test_episodes):
         validate_return = np.mean(episode_return[-100:])
         print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
 
-        
-    #if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
+    
+
 
 
 class FourierTransform(nn.Module):
@@ -185,7 +192,7 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
-        self.net = nn.Sequential(
+        self.netA = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
             FourierTransform(hidden_dim, hidden_dim),
@@ -193,14 +200,29 @@ class Critic(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
 
-        self.nets = nn.ModuleList([self.net for _ in range(3)])
+        self.netB = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, 1)
+        )
+
+        self.netC = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            FourierTransform(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, 1)
+        )
 
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        qs = [net(x) for net in self.nets]
-        if not united: return qs
-        return torch.min(torch.stack(qs, dim=-1), dim=-1).values
+        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
+        if not united: return (qA, qB, qC)
+        stack = torch.stack([qA, qB, qC], dim=-1)
+        return torch.min(stack, dim=-1).values
 
 
 
@@ -208,26 +230,32 @@ class ReplayBuffer:
     def __init__(self, device, capacity=1000000):
         self.buffer, self.capacity, self.length =  deque(maxlen=capacity), capacity, 0 #buffer is prioritised limited memory
         self.device = device
-        self.batch_size = min(max(128, self.length//300), 2048) #in order for sample to describe population
+        self.batch_size = min(max(32, self.length//300), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
-        self.indices = []
+        self.values = []
+        self.gamma = [0.9**x for x in range(8,0,-1)]
+
+    #cheap information on short retrace without terminal rewards, strongly squashed
+    def discounted_sum(self, rewards):
+        discounted_rewards = [g*x for g,x in zip(self.gamma, rewards[-9:-1])]
+        return 1e-9 * (1000.0 + sum(discounted_rewards))/1000.0
     
-    def add(self, transition):
+    def add(self, transition, rewards):
         self.buffer.append(transition)
-        if self.length<self.capacity: self.indices.append(self.length)
         
         self.length = len(self.buffer)
-        self.batch_size = min(max(128, self.length//300), 2048)
-        
-
+        self.batch_size = min(max(32, self.length//300), 2048)
+        if self.length<self.capacity: self.values.append(self.discounted_sum(rewards))
 
     def fade(self, norm_index):
-        return 1e-3*np.tanh(5*norm_index**2) # linear / -> non-linear _/‾
+        return np.tanh(fade_factor*norm_index**2) # linear / -> non-linear _/‾
 
     def sample(self):
-        indexes = np.array(self.indices)
-        weights = self.fade(indexes/self.length)
+
+        indexes = np.array(list(range(self.length)))
+        weights = 1e-3*(self.fade(indexes/self.length) + self.values)
         probs = weights/np.sum(weights)
+
         batch_indices = self.random.choice(indexes, p=probs, size=self.batch_size)
         batch = [self.buffer[indx-1] for indx in batch_indices]
         states, actions, rewards, next_states, dones = map(np.vstack, zip(*batch))
@@ -288,8 +316,8 @@ class uDDPG(object):
             q_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
-        qs = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
+        qA, qB, qC = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
 
 
         self.critic_optimizer.zero_grad()
@@ -318,7 +346,13 @@ class uDDPG(object):
 
  
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+if device == "cuda":
+    if torch.cuda.device_count() > 1:
+        print(torch.cuda.device_count())
+        
+print(device)
 
 
 
@@ -365,7 +399,7 @@ try:
 
     print('models loaded')
 
-    #testing(env_test, clip_step, 10)
+    #testing(env_test, algo, replay_buffer, clip_step, 10)
 
 except:
     print("problem during loading models")
@@ -375,8 +409,6 @@ except:
 for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
-
-    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
    
 
     #---------------------------1. processor releave --------------------------
@@ -399,7 +431,7 @@ for i in range(start_episode, num_episodes):
 
     #------------------------------training------------------------------
 
-    
+    if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep )]
         
 
     for steps in range(1, clip_step+1):
@@ -421,7 +453,7 @@ for i in range(start_episode, num_episodes):
         delta = np.mean(np.abs(next_state - state))
         #moving is life, stalling is dangerous
         reward_ = reward + stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
-        replay_buffer.add([state, action, reward_, next_state, done])
+        replay_buffer.add([state, action, reward_, next_state, done], rewards)
         
 
         if policy_training: q_values = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
@@ -458,14 +490,14 @@ for i in range(start_episode, num_episodes):
 
         #-----------------validation-------------------------
         if (i>=start_validate and i%50==0):
+            #test_episodes = 1000 if total_rewards[i]>=301 else 5
             test_episodes = 10
             env_val = env if test_episodes == 1000 else env_test
             print("Validation... ", test_episodes, " epsodes")
             test_rewards = []
 
-            testing(env_val, 1000, test_episodes)
-
-            i = i + test_episodes
+            testing(env_val, algo, replay_buffer, 1000, test_episodes)
+            q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
                     
 
         #====================================================
