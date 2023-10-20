@@ -127,7 +127,7 @@ def testing(env, algo, replay_buffer, clip_step, test_episodes):
         validate_return = np.mean(episode_return[-100:])
         print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
 
-    q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
+    
 
 
 
@@ -238,7 +238,7 @@ class ReplayBuffer:
     #cheap information on short retrace without terminal rewards, strongly squashed
     def discounted_sum(self, rewards):
         discounted_rewards = [g*x for g,x in zip(self.gamma, rewards[-9:-1])]
-        return 1e-6 * (1000.0 + sum(discounted_rewards))/1000.0
+        return 1e-9 * (1000.0 + sum(discounted_rewards))/1000.0
     
     def add(self, transition, rewards):
         self.buffer.append(transition)
@@ -497,6 +497,7 @@ for i in range(start_episode, num_episodes):
             test_rewards = []
 
             testing(env_val, algo, replay_buffer, 1000, test_episodes)
+            q_values = [algo.train(replay_buffer.sample()) for x in range(1024)]
                     
 
         #====================================================
