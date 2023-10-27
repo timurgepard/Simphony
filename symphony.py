@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import copy
 import math
+from collections import deque
 
 explore_noise = 0.2 #kickstarter during exploration
 stall_penalty = 0.03 #moving is life, stalling is dangerous
@@ -185,27 +186,16 @@ class ReplayBuffer:
         self.batch_size = min(max(128, self.idx//500), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes = [], np.array([])
-
-        self.states = torch.empty((self.capacity, state_dim), dtype=torch.float)
-        self.actions = torch.empty((self.capacity, action_dim), dtype=torch.float)
-        self.rewards = torch.empty((self.capacity, 1), dtype=torch.float)
-        self.next_states = torch.empty((self.capacity, state_dim), dtype=torch.float)
-        self.dones = torch.empty((self.capacity, 1), dtype=torch.float)
+        self.buffer = deque(maxlen=capacity)
 
 
     def add(self, state, action, reward, next_state, done):
-
+        
         #moving is life, stalling is dangerous
         delta = np.mean(np.abs(next_state - state))
         reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
-        self.states[self.idx] = torch.FloatTensor(np.array(state))
-        self.actions[self.idx] =  torch.FloatTensor(np.array(action))
-        self.rewards[self.idx] = torch.FloatTensor(np.array(reward))
-        self.next_states[self.idx] =  torch.FloatTensor(np.array(next_state))
-        self.dones[self.idx] =  torch.FloatTensor(np.array(done))
-
-        
+        self.buffer.append([state, action, reward, next_state, done])
         self.batch_size = min(max(128,self.idx//500), 2048)
 
         if self.idx<=self.capacity:
@@ -223,14 +213,17 @@ class ReplayBuffer:
 
     def sample(self):
         batch_indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
-       
+        batch = [self.buffer[indx-1] for indx in batch_indices]
+        states, actions, rewards, next_states, dones = map(np.vstack, zip(*batch))
+        
         return (
-            self.states[batch_indices].to(self.device),
-            self.actions[batch_indices].to(self.device),
-            self.rewards[batch_indices].to(self.device),
-            self.next_states[batch_indices].to(self.device),
-            self.dones[batch_indices].to(self.device),
+            torch.FloatTensor(states).to(self.device),
+            torch.FloatTensor(actions).to(self.device),
+            torch.FloatTensor(rewards).to(self.device),
+            torch.FloatTensor(next_states).to(self.device),
+            torch.FloatTensor(dones).to(self.device),
         )
+
 
     def __len__(self):
         return self.idx
