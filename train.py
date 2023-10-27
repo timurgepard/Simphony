@@ -14,7 +14,7 @@ print(device)
 
 #global parameters
 #1 BipedalWalker, 2 Humanoid
-option = 1
+option = 2
 
 explore_time = 5000
 tr_between_ep = 30 # training between episodes
