@@ -6,7 +6,7 @@ import copy
 import math
 
 explore_noise = 0.2 #kickstarter during exploration
-stall_penalty = 0.05 #moving is life, stalling is dangerous
+stall_penalty = 0.03 #moving is life, stalling is dangerous
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
