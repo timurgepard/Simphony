@@ -14,7 +14,7 @@ print(device)
 
 #global parameters
 #1 BipedalWalker, 2 Humanoid
-option = 1
+option = 2
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
@@ -128,7 +128,7 @@ for i in range(start_episode, num_episodes):
     if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 2):
+    for steps in range(0, 8):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
