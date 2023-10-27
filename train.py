@@ -17,7 +17,7 @@ print(device)
 option = 2
 
 explore_time = 5000
-tr_between_ep = 70 # training between episodes
+tr_between_ep = 100 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 1000 #max steps per episode
