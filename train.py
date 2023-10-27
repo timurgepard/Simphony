@@ -17,10 +17,10 @@ print(device)
 option = 2
 
 explore_time = 5000
-tr_between_ep = 70 # training between episodes
+tr_between_ep = 100 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
-limit_step = 10000 #max steps per episode
+limit_step = 1000 #max steps per episode
 num_episodes = 1000000
 start_episode = 0 #number for the identification of the current episode
 total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
@@ -128,7 +128,7 @@ for i in range(start_episode, num_episodes):
     if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 8):
+    for steps in range(0, 4):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
