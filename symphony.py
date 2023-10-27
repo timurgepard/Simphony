@@ -98,7 +98,7 @@ class Critic(nn.Module):
         self.netA = FourierSeries(state_dim+action_dim, hidden_dim, 1)
         self.netB = FourierSeries(state_dim+action_dim, hidden_dim, 1)
         self.netC = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        
+
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
