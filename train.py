@@ -14,10 +14,10 @@ print(device)
 
 #global parameters
 #1 BipedalWalker, 2 Humanoid
-option = 2
+option = 1
 
 explore_time = 5000
-tr_between_ep = 30 # training between episodes
+tr_between_ep = 70 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 10000 #max steps per episode
