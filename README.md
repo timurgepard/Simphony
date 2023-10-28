@@ -5,9 +5,10 @@
 
 | BipedalWalker-v3  | Humanoid-v2 (last update) |
 | ------------- | ------------- |
-| ![Screenshot_50_ep](https://github.com/timurgepard/Simphony/assets/13238473/5f677487-18d3-4bcf-b41e-4d1f4745b724)  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/a060cc9b-032e-4794-9ff3-151b8863eb70)
+| ![Screenshot_50_ep](https://github.com/timurgepard/Simphony/assets/13238473/5f677487-18d3-4bcf-b41e-4d1f4745b724)  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/56145a5a-1624-4b08-9689-b87b307bda92)
+
   |
-| Content Cell  | Content Cell  |
+
 
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
