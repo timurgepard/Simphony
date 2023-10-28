@@ -3,9 +3,14 @@
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
-BipedalWalker-v3 in robot_like mode:
+BipedalWalker-v3:
 
 ![Screenshot_50_ep](https://github.com/timurgepard/Simphony/assets/13238473/5f677487-18d3-4bcf-b41e-4d1f4745b724)
+
+Humanoid-v2 (last update):
+
+![image](https://github.com/timurgepard/Simphony/assets/13238473/024a9c48-6d02-4e9e-a287-1ebdf02e66b3)
+
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
