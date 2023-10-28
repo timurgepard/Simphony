@@ -17,7 +17,7 @@ print(device)
 option = 2
 
 explore_time = 5000
-tr_between_ep = 100 # training between episodes
+tr_between_ep = 30 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 1000 #max steps per episode
@@ -37,6 +37,7 @@ if option == 1:
 elif option == 2:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
+
 
 
 
@@ -64,7 +65,7 @@ def testing(env, limit_step, test_episodes):
         state = env.reset()[0]
         rewards = []
 
-        for _ in range(1,limit_step+1):
+        for steps in range(1,limit_step+1):
             action = algo.select_action(state)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
@@ -75,7 +76,7 @@ def testing(env, limit_step, test_episodes):
         episode_return.append(np.sum(rewards))
 
         validate_return = np.mean(episode_return[-100:])
-        print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}")
+        print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}, steps: {steps}")
 
 
 
@@ -129,7 +130,7 @@ for i in range(start_episode, num_episodes):
     if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 8):
+    for steps in range(0, 4):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
@@ -164,7 +165,7 @@ for i in range(start_episode, num_episodes):
             
     
 
-    print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps}")
+    print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps} of {limit_step}" )
 
 
     if policy_training:
@@ -181,6 +182,6 @@ for i in range(start_episode, num_episodes):
 
 
         #-----------------validation-------------------------
-        if (i>=start_test and i%50==0): testing(env_test, limit_step, test_episodes=10)
+        if (i>=start_test and i%50==0): testing(env_test, limit_step=2000, test_episodes=10)
               
         #====================================================
