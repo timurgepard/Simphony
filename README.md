@@ -22,8 +22,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
    
    additionally:
 5. fading replay buffer: old transitions fade away gradually
-6. emphasis on the beginning of training, number of steps grows exponentially
-7. random initialization prevent the same initial states in the buffer.
-8. exploration-noise, reward/punishment, etc
+6. random initialization prevent the same initial states in the buffer.
+7. exploration-nois
 
    My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
