@@ -9,7 +9,8 @@
 
 
 
-
+I found some misbehaving when using lists in forward pass, the most correct way is to apply input sequentially to the networks,
+reported here: https://discuss.pytorch.org/t/there-are-some-glitches-when-using-list-or-nn-modulolist-during-forward-pass/190888
 
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
