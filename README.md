@@ -7,7 +7,6 @@
 | ------------- | ------------- |
 | ![Screenshot_50_ep](https://github.com/timurgepard/Simphony/assets/13238473/5f677487-18d3-4bcf-b41e-4d1f4745b724)  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/33d2a613-fc83-4721-928c-a82f6a766c7a)
 
-For competition purposes, number of training steps were increased. For more human-like motions decrease number of training steps.
 
 
 
