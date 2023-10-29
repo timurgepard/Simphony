@@ -105,7 +105,7 @@ class Critic(nn.Module):
         qs = [self.netA(x), self.netB(x), self.netC(x)]
         if not united: return qs
         stack = torch.stack(qs, dim=-1)
-        return 0.93*torch.min(stack, dim=-1).values + 0.07*torch.mean(stack, dim=-1)
+        return 0.9*torch.min(stack, dim=-1).values + 0.1*torch.mean(stack, dim=-1)
 
 
 # Define the actor-critic agent
