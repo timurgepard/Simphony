@@ -20,7 +20,7 @@ explore_time = 5000
 tr_between_ep = 30 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
-limit_step = 1000 #max steps per episode
+limit_step = 1000000 #max steps per episode
 num_episodes = 1000000
 start_episode = 0 #number for the identification of the current episode
 total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
@@ -165,7 +165,7 @@ for i in range(start_episode, num_episodes):
             
     
 
-    print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps} of {limit_step}" )
+    print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps}")
 
 
     if policy_training:
