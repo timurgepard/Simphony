@@ -21,7 +21,7 @@ tr_between_ep = 30 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
-num_episodes = 1200
+num_episodes = 10000000
 start_episode = 0 #number for the identification of the current episode
 total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
@@ -35,7 +35,7 @@ if option == 1:
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
     limit_step = 10000
 elif option == 2:
-    tr_between_ep = 200
+    tr_between_ep = 120
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
@@ -108,7 +108,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_step, 10)
+    testing(env_test, 2000, 10)
 except:
     print("problem during loading models")
 
