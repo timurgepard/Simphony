@@ -14,7 +14,7 @@
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
 1. harmonization of the neural network
-2. careful TD3, element-wise minimum that strives to element-wise mean.
+2. careful TD3, element-wise minimum.
 3. rectified Huber symmetrical/assymetrical error loss functions
 4. "movement is life" concept
    
