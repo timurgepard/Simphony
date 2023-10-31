@@ -35,7 +35,7 @@ if option == 1:
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
     limit_step = 10000
 elif option == 2:
-    tr_between_ep = 120
+    tr_between_ep = 150
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
@@ -131,7 +131,7 @@ for i in range(start_episode, num_episodes):
     if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 4):
+    for steps in range(0, 10):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
