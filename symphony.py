@@ -208,7 +208,7 @@ class ReplayBuffer:
 
     def generate_probs(self):
         def fade(norm_index): return np.tanh(3.0*norm_index**2) # linear / -> non-linear _/‾
-        weights = 0.001*(fade(self.indexes/self.idx))# weights are based solely on the history, highly squashed
+        weights = 1e-7*(fade(self.indexes/self.idx))# weights are based solely on the history, highly squashed
         return weights/np.sum(weights)
 
 
