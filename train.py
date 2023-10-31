@@ -140,8 +140,9 @@ for i in range(start_episode, num_episodes):
 
     if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
         
-
+    episode_steps = 0
     for steps in range(1, limit_step+1):
+        episode_steps += 1
 
         if len(replay_buffer)>=explore_time and not policy_training:
             print("started training")
@@ -160,7 +161,6 @@ for i in range(start_episode, num_episodes):
     total_rewards.append(np.sum(rewards))
     average_reward = np.mean(total_rewards[-100:])
 
-    episode_steps = steps
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
             
