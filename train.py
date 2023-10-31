@@ -131,7 +131,7 @@ for i in range(start_episode, num_episodes):
     if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 10):
+    for steps in range(0, 7):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
