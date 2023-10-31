@@ -166,7 +166,7 @@ for i in range(start_episode, num_episodes):
             
     
 
-    print(f"Ep {i}: Rtrn = {total_rewards[i]:.2f} | ep steps = {episode_steps}")
+    print(f"Ep {i}: Rtrn = {total_rewards[-1]:.2f} | ep steps = {episode_steps}")
 
 
     if policy_training:
