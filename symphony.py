@@ -1,230 +1,188 @@
+import logging
+logging.getLogger().setLevel(logging.CRITICAL)
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import numpy as np
-import copy
-import math
-from collections import deque
+import gymnasium as gym
+import pickle
+import time
+from symphony import Symphony, ReplayBuffer
 
-explore_noise = 0.2 #kickstarter during exploration
-stall_penalty = 0.03 #moving is life, stalling is dangerous
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
+
+#global parameters
+#1 BipedalWalker, 2 Humanoid
+option = 2
+
+explore_time = 5000
+tr_between_ep = 30 # training between episodes
+tr_per_step = 3 # training per frame
+start_test = 250
+limit_step = 2000 #max steps per episode
+num_episodes = 10000000
+start_episode = 0 #number for the identification of the current episode
+total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
 
-# random seeds
-r1, r2, r3 = 830143436, 167430301, 2193498338 #r = random.randint(0,2**32-1)
-print(r1, ", ", r2, ", ", r3)
-torch.manual_seed(r1)
-np.random.seed(r2)
+hidden_dim = 256
 
 
-#Rectified Hubber Error Loss Function
-def ReHE(error):
-    ae = torch.abs(error).mean()
-    return ae*torch.tanh(ae)
 
-#Rectified Hubber Assymetric Error Loss Function
-def ReHaE(error):
-    e = error.mean()
-    return torch.abs(e)*torch.tanh(e)
+if option == 1:
+    env = gym.make('BipedalWalker-v3')
+    env_test = gym.make('BipedalWalker-v3', render_mode="human")
+    limit_step = 10000
+elif option == 2:
+    tr_between_ep = 150
+    env = gym.make('Humanoid-v4')
+    env_test = gym.make('Humanoid-v4', render_mode="human")
 
 
-class Sine(nn.Module):
-    def __init__(self):
-        super().__init__()
 
-    def forward(self, x):
-        return torch.sin(x)
+
+state_dim = env.observation_space.shape[0]
+action_dim= env.action_space.shape[0]
+
+print('action space high', env.action_space.high)
+
+max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else 1.0
+replay_buffer = ReplayBuffer(state_dim, action_dim, device)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
+
+
+
+
+
+
+#testing model
+def testing(env, limit_step, test_episodes):
+    if test_episodes<1: return
+    print("Validation... ", test_episodes, " epsodes")
+    episode_return = []
+
+    for test_episode in range(test_episodes):
+        state = env.reset()[0]
+        rewards = []
+
+        for steps in range(1,limit_step+1):
+            action = algo.select_action(state)
+            next_state, reward, done, info , _ = env.step(action)
+            rewards.append(reward)
+            state = next_state
+            
+            if done: break
+
+        episode_return.append(np.sum(rewards))
+
+        validate_return = np.mean(episode_return[-100:])
+        print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}, steps: {steps}")
+
+
+
+
+
+#--------------------loading existing models, replay_buffer, parameters-------------------------
+
+try:
+    print("loading buffer...")
+    with open('replay_buffer', 'rb') as file:
+        dict = pickle.load(file)
+        algo.actor.eps = dict['eps']
+        algo.actor.x_coor = dict['x_coor']
+        replay_buffer = dict['buffer']
+        total_rewards = dict['total_rewards']
+        total_steps = dict['total_steps']
+        if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
+    print('buffer loaded, buffer length', len(replay_buffer))
+
+    start_episode = len(total_steps) - 1
+
+except:
+    print("problem during loading buffer")
+
+try:
+    print("loading models...")
+    algo.actor.load_state_dict(torch.load('actor_model.pt'))
+    algo.critic.load_state_dict(torch.load('critic_model.pt'))
+    algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
+    print('models loaded')
+    testing(env_test, 2000, 10)
+except:
+    print("problem during loading models")
+
+#-------------------------------------------------------------------------------------
+
+
+#used to create random initalization in Actor -> less dependendance on the specific random seed.
+def init_weights(m):
+    if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
+
+for i in range(start_episode, num_episodes):
+    rewards = []
+    state = env.reset()[0]
+
     
-class FourierSeries(nn.Module):
-    def __init__(self,  f_in, hidden_dim, f_out):
-        super().__init__()
 
-        self.fft = nn.Sequential(
-            nn.Linear(f_in, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
-            Sine(),
-            nn.LeakyReLU(0.1),
-            nn.Linear(hidden_dim, f_out)
-        )
+    #---------------------------1. processor releave --------------------------
+    if policy_training: time.sleep(0.5)
+     #---------------------2. decreases dependence on random seed: ---------------
+    if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
+    #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
+    action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
+    for steps in range(0, 8):
+        next_state, reward, done, info, _ = env.step(action)
+        rewards.append(reward)
+        state = next_state
 
-    def forward(self, x):
-        return self.fft(x)
+    #------------------------------training------------------------------
+
+    if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
         
+    episode_steps = 0
+    for steps in range(1, limit_step+1):
+        episode_steps += 1
 
+        if len(replay_buffer)>=explore_time and not policy_training:
+            print("started training")
+            policy_training = True
+            _ = [algo.train(replay_buffer.sample()) for x in range(128)]
 
+        action = algo.select_action(state)
+        next_state, reward, done, info, _ = env.step(action)
+        rewards.append(reward)
+        replay_buffer.add(state, action, reward, next_state, done)
+        if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
+        state = next_state
+        if done: break
+            
 
-# Define the actor network
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0):
-        super(Actor, self).__init__()
-        self.device = device
+    total_rewards.append(np.sum(rewards))
+    average_reward = np.mean(total_rewards[-100:])
 
-        self.net = nn.Sequential(
-            FourierSeries(state_dim, hidden_dim, action_dim),
-            nn.Tanh()
-        )
-
-        self.max_action = torch.mean(max_action).item()
-
-        self.eps = 1.0
-        self.lim = 2.5*self.eps
-        self.x_coor = 0.0
+    total_steps.append(episode_steps)
+    average_steps = np.mean(total_steps[-100:])
+            
     
-    def accuracy(self):
-        if self.eps<1e-4: return False
-        if self.eps>=0.07:
-            with torch.no_grad():
-                self.eps = explore_noise * self.max_action * (math.cos(self.x_coor) + 1.0)
-                self.lim = 2.5*self.eps
-                self.x_coor += 3e-5
-        return True
+
+    print(f"Ep {i}: Rtrn = {total_rewards[-1]:.2f} | ep steps = {episode_steps}")
 
 
-    def forward(self, state, mean=False):
-        x = self.max_action*self.net(state)
-        if mean: return x
-        if explore_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
-        return x.clamp(-self.max_action, self.max_action)
+    if policy_training:
+
+        #--------------------saving-------------------------
+        if (i%5==0): 
+            torch.save(algo.actor.state_dict(), 'actor_model.pt')
+            torch.save(algo.critic.state_dict(), 'critic_model.pt')
+            torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
+            #print("saving... len = ", len(replay_buffer), end="")
+            with open('replay_buffer', 'wb') as file:
+                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
+            #print(" > done")
 
 
-        
-# Define the critic network
-class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
-        super(Critic, self).__init__()
-
-        self.netA = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.netB = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.netC = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-
-
-    def forward(self, state, action, united=False):
-        x = torch.cat([state, action], -1)
-        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
-        if not united: return (qA, qB, qC)
-        stack = torch.stack([qA, qB, qC], dim=-1)
-        return torch.min(stack, dim=-1).values# + 0.1*torch.mean(stack, dim=-1)
-
-
-# Define the actor-critic agent
-class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0):
-
-        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
-
-        self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
-        self.critic_target = copy.deepcopy(self.critic)
-
-        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
-        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=7e-4)
-
-        self.max_action = max_action
-        self.device = device
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.q_old_policy = 0.0
-
-
-    def select_action(self, states):
-        with torch.no_grad():
-            states = np.array(states)
-            state = torch.FloatTensor(states).reshape(-1,self.state_dim).to(self.device)
-            action = self.actor(state, mean=False)
-        return action.cpu().data.numpy().flatten()
-
-
-    def train(self, batch):
-        state, action, reward, next_state, done = batch
-        self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state)
-
-
-    def critic_update(self, state, action, reward, next_state, done): 
-
-        with torch.no_grad():
-            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
-                target_param.data.copy_(0.997*target_param.data + 0.003*param)
-
-            next_action = self.actor(next_state, mean=True)
-            q_next_target = self.critic_target(next_state, next_action, united=True)
-            q_value = reward +  (1-done) * 0.99 * q_next_target
-
-        qA, qB, qC = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
-
-
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
-
-        
-
-    def actor_update(self, state):
-        action = self.actor(state, mean=True)
-        q_new_policy = self.critic(state, action, united=True)
-        actor_loss = -(q_new_policy - self.q_old_policy)
-
-        actor_loss = ReHaE(actor_loss)
-
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward(retain_graph=True)
-        self.actor_optimizer.step()
-
-        with torch.no_grad():
-            self.q_old_policy = q_new_policy.mean().detach()
-
-        return self.q_old_policy 
-
-
-
-
-
-class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, capacity=10000000):
-        self.capacity, self.idx, self.device = capacity, 0, device
-        self.batch_size = min(max(128, self.idx//500), 2048) #in order for sample to describe population
-        self.random = np.random.default_rng()
-        self.indices, self.indexes = [], np.array([])
-        self.buffer = deque(maxlen=capacity)
-
-
-    def add(self, state, action, reward, next_state, done):
-        
-        #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state))
-        reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
-
-        self.buffer.append([state, action, reward, next_state, done])
-        self.batch_size = min(max(128,self.idx//500), 2048)
-
-        if self.idx<=self.capacity:
-            self.indices.append(self.idx)
-            self.indexes = np.array(self.indices)
-
-        self.idx += 1
-        
-
-    def generate_probs(self):
-        def fade(norm_index): return np.tanh(3.0*norm_index**2) # linear / -> non-linear _/‾
-        weights = 1e-7*(fade(self.indexes/self.idx))# weights are based solely on the history, highly squashed
-        return weights/np.sum(weights)
-
-
-    def sample(self):
-        batch_indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
-        batch = [self.buffer[indx-1] for indx in batch_indices]
-        states, actions, rewards, next_states, dones = map(np.vstack, zip(*batch))
-        
-        return (
-            torch.FloatTensor(states).to(self.device),
-            torch.FloatTensor(actions).to(self.device),
-            torch.FloatTensor(rewards).to(self.device),
-            torch.FloatTensor(next_states).to(self.device),
-            torch.FloatTensor(dones).to(self.device),
-        )
-
-
-    def __len__(self):
-        return self.idx
+        #-----------------validation-------------------------
+        if (i>=start_test and i%50==0): testing(env_test, limit_step=2000, test_episodes=10)
+              
+        #====================================================
