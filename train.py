@@ -35,9 +35,9 @@ if option == 1:
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
     limit_step = 10000
 elif option == 2:
-    tr_between_ep = 30
-    env = gym.make('Humanoid-v4')
-    env_test = gym.make('Humanoid-v4', render_mode="human")
+    tr_between_ep = 70
+    env = gym.make('Humanoid-v4', render_mode="human")
+    env_test = gym.make('Humanoid-v4')
 
 
 
