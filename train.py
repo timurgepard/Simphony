@@ -14,7 +14,7 @@ print(device)
 
 #global parameters
 #1 BipedalWalker, 2 Humanoid
-option = 2
+option = 3
 
 explore_time = 5000
 tr_between_ep = 30 # training between episodes
@@ -40,13 +40,20 @@ if option == 1:
 elif option == 2:
     fade_factor = 5.0
     tr_between_ep = 70
-    env = gym.make('HalfCheetah-v4', render_mode="human")
+    env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
+
 elif option == 3:
+    fade_factor = 5.0
+    tr_between_ep = 70
+    env = gym.make('Ant-v4')
+    env_test = gym.make('Ant-v4', render_mode="human")
+
+elif option == 4:
     fade_factor = 7.0
     tr_between_ep = 170
-    env = gym.make('Humanoid-v4', render_mode="human")
-    env_test = gym.make('Humanoid-v4')
+    env = gym.make('Humanoid-v4')
+    env_test = gym.make('Humanoid-v4', render_mode="human")
 
 
 
