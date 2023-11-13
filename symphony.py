@@ -37,12 +37,10 @@ class Sine(nn.Module):
         return torch.sin(x)
     
 class FourierSeries(nn.Module):
-    def __init__(self,  f_in, hidden_dim, f_out):
+    def __init__(self, hidden_dim, f_out):
         super().__init__()
 
         self.fft = nn.Sequential(
-            nn.Linear(f_in, hidden_dim),
-            nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
             Sine(),
             nn.LeakyReLU(0.1),
@@ -61,8 +59,13 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
+        self.input = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+        )
+
         self.net = nn.Sequential(
-            FourierSeries(state_dim, hidden_dim, action_dim),
+            FourierSeries(hidden_dim, action_dim),
             nn.Tanh()
         )
 
@@ -83,7 +86,8 @@ class Actor(nn.Module):
 
 
     def forward(self, state, mean=False):
-        x = self.max_action*self.net(state)
+        x = self.input(state)
+        x = self.max_action*self.net(x)
         if mean: return x
         if explore_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
@@ -95,17 +99,25 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
-        self.netA = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.netB = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.netC = FourierSeries(state_dim+action_dim, hidden_dim, 1)
+        self.input = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim)
+        )
+
+        self.qA = FourierSeries(hidden_dim, 1)
+        self.qB = FourierSeries(hidden_dim, 1)
+        self.qC = FourierSeries(hidden_dim, 1)
+
+        self.s2 = FourierSeries(hidden_dim, 1)
 
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        qA, qB, qC = self.netA(x), self.netB(x), self.netC(x)
-        if not united: return (qA, qB, qC)
+        x = self.input(x)
+        qA, qB, qC, s2 = self.qA(x), self.qB(x), self.qC(x), self.s2(x)
+        if not united: return (qA, qB, qC, s2)
         stack = torch.stack([qA, qB, qC], dim=-1)
-        return torch.min(stack, dim=-1).values# + 0.1*torch.mean(stack, dim=-1)
+        return torch.min(stack, dim=-1).values, s2# + 0.1*torch.mean(stack, dim=-1)
 
 
 # Define the actor-critic agent
@@ -125,6 +137,7 @@ class Symphony(object):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.q_old_policy = 0.0
+        self.s2_old_policy = 0.0
 
 
     def select_action(self, states):
@@ -148,11 +161,12 @@ class Symphony(object):
                 target_param.data.copy_(0.997*target_param.data + 0.003*param)
 
             next_action = self.actor(next_state, mean=True)
-            q_next_target = self.critic_target(next_state, next_action, united=True)
+            q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
+            s2_value =  1e-4*(1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn and increase dumped variance
 
-        qA, qB, qC = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
+        qA, qB, qC, s2 = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC) + ReHE(s2_value - s2)
 
 
         self.critic_optimizer.zero_grad()
@@ -163,8 +177,8 @@ class Symphony(object):
 
     def actor_update(self, state):
         action = self.actor(state, mean=True)
-        q_new_policy = self.critic(state, action, united=True)
-        actor_loss = -(q_new_policy - self.q_old_policy)
+        q_new_policy, s2_new_policy = self.critic(state, action, united=True)
+        actor_loss = -(q_new_policy - self.q_old_policy) - (s2_new_policy - self.s2_old_policy)
 
         actor_loss = ReHaE(actor_loss)
 
@@ -174,6 +188,7 @@ class Symphony(object):
 
         with torch.no_grad():
             self.q_old_policy = q_new_policy.mean().detach()
+            self.s2_old_policy = s2_new_policy.mean().detach()
 
         return self.q_old_policy 
 
@@ -182,12 +197,13 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, capacity=10000000):
+    def __init__(self, state_dim, action_dim, device, fade_factor=3.0, capacity=10000000):
         self.capacity, self.idx, self.device = capacity, 0, device
         self.batch_size = min(max(128, self.idx//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes = [], np.array([])
         self.buffer = deque(maxlen=capacity)
+        self.fade_factor = fade_factor
 
 
     def add(self, state, action, reward, next_state, done):
@@ -207,7 +223,7 @@ class ReplayBuffer:
         
 
     def generate_probs(self):
-        def fade(norm_index): return np.tanh(3.0*norm_index**2) # linear / -> non-linear _/‾
+        def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
         weights = 1e-7*(fade(self.indexes/self.idx))# weights are based solely on the history, highly squashed
         return weights/np.sum(weights)
 
