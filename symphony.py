@@ -163,7 +163,7 @@ class Symphony(object):
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  1e-4*(1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn and increase dumped variance
+            s2_value =  1e-7 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #greatly reduced objective to learn and increase dumped variance
 
         qA, qB, qC, s2 = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC) + ReHE(s2_value - s2)
