@@ -5,7 +5,8 @@
 
 | BipedalWalker-v3  | Humanoid-v4 (last update) |
 | ------------- | ------------- |
-| ![Screenshot_50_ep](https://github.com/timurgepard/Simphony/assets/13238473/5f677487-18d3-4bcf-b41e-4d1f4745b724)  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/78c1a3fa-bad1-492c-89e0-47b8a5c9a66f)
+ | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |
 
 
 
