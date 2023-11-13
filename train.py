@@ -31,11 +31,20 @@ hidden_dim = 256
 
 
 if option == 1:
+    fade_factor = 3.0
+    tr_between_ep = 30
+    limit_step = 10000
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    limit_step = 10000
+    
 elif option == 2:
+    fade_factor = 5.0
     tr_between_ep = 70
+    env = gym.make('HalfCheetah-v4', render_mode="human")
+    env_test = gym.make('HalfCheetah-v4', render_mode="human")
+elif option == 3:
+    fade_factor = 7.0
+    tr_between_ep = 170
     env = gym.make('Humanoid-v4', render_mode="human")
     env_test = gym.make('Humanoid-v4')
 
@@ -48,7 +57,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 
 max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else 1.0
-replay_buffer = ReplayBuffer(state_dim, action_dim, device)
+replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor)
 algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
 
 
