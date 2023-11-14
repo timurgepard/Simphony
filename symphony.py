@@ -40,12 +40,24 @@ class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
         super().__init__()
 
+
         self.fft = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             Sine(),
             nn.LeakyReLU(0.1),
             nn.Linear(hidden_dim, f_out)
         )
+
+        """
+        self.fft = nn.Sequential(
+            nn.Linear(f_in, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            Sine(),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, f_out)
+        )
+        """
 
     def forward(self, x):
         return self.fft(x)
@@ -59,6 +71,12 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
+        """
+        self.net = nn.Sequential(
+            FourierSeries(state_dim, hidden_dim, action_dim),
+            nn.Tanh()
+        )
+        """
         self.input = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -68,6 +86,7 @@ class Actor(nn.Module):
             FourierSeries(hidden_dim, action_dim),
             nn.Tanh()
         )
+        
 
         self.max_action = torch.mean(max_action).item()
 
@@ -99,6 +118,16 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
+
+
+        """
+        self.qA = FourierSeries(state_dim+action_dim, hidden_dim, 1)
+        self.qB = FourierSeries(state_dim+action_dim, hidden_dim, 1)
+        self.qC = FourierSeries(state_dim+action_dim, hidden_dim, 1)
+
+        self.s2 = FourierSeries(state_dim+action_dim, hidden_dim, 1)
+        """
+        
         self.input = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
             nn.LayerNorm(hidden_dim)
@@ -109,7 +138,7 @@ class Critic(nn.Module):
         self.qC = FourierSeries(hidden_dim, 1)
 
         self.s2 = FourierSeries(hidden_dim, 1)
-
+        
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
@@ -117,7 +146,8 @@ class Critic(nn.Module):
         qA, qB, qC, s2 = self.qA(x), self.qB(x), self.qC(x), self.s2(x)
         if not united: return (qA, qB, qC, s2)
         stack = torch.stack([qA, qB, qC], dim=-1)
-        return torch.min(stack, dim=-1).values, s2# + 0.1*torch.mean(stack, dim=-1)
+        return torch.min(stack, dim=-1).values, s2
+
 
 
 # Define the actor-critic agent
@@ -163,7 +193,7 @@ class Symphony(object):
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  1e-7 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #greatly reduced objective to learn and increase dumped variance
+            s2_value =  1e-3 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
 
         qA, qB, qC, s2 = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC) + ReHE(s2_value - s2)
@@ -178,12 +208,10 @@ class Symphony(object):
     def actor_update(self, state):
         action = self.actor(state, mean=True)
         q_new_policy, s2_new_policy = self.critic(state, action, united=True)
-        actor_loss = -(q_new_policy - self.q_old_policy) - (s2_new_policy - self.s2_old_policy)
-
-        actor_loss = ReHaE(actor_loss)
+        actor_loss = -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
 
         self.actor_optimizer.zero_grad()
-        actor_loss.backward(retain_graph=True)
+        actor_loss.backward()
         self.actor_optimizer.step()
 
         with torch.no_grad():
