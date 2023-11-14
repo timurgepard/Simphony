@@ -7,6 +7,7 @@ import gymnasium as gym
 import pickle
 import time
 from symphony import Symphony, ReplayBuffer
+import math
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -27,7 +28,7 @@ total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
 
 hidden_dim = 256
-
+max_action = 1.0
 
 
 if option == 1:
@@ -58,7 +59,11 @@ elif option == 5:
     fade_factor = 7.0
     tr_between_ep = 70
     env = gym.make('Ant-v4')
-    env_test = gym.make('Ant-v4', render_mode="human")
+    env_test = gym.make('Ant-v4')
+    #Ant environment has problem when Ant is flipped upside down but it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
+    angle_limit = 0.3
+    #less aggressive movements -> faster learning but less final speed
+    max_action = 0.7
 
 
 
@@ -67,7 +72,7 @@ action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
 
-max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else 1.0
+max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor)
 algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
 
@@ -172,6 +177,11 @@ for i in range(start_episode, num_episodes):
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
+        #Ant environment has problem when Ant is flipped upside down but it is not detected (rotation around x is not checked), we can check to save some time:
+        if env.spec.id.find("Ant") != -1:
+            if (next_state[1]<angle_limit): done = True
+            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
+        
         replay_buffer.add(state, action, reward, next_state, done)
         if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
