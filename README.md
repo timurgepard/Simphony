@@ -7,18 +7,18 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 
 The algorithm is cleaned, 248 lines, includes:
 
-0. no multi-agents
 1. harmonization of the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
 3. "immediate" Advantage (but excessive training)
 4. "movement is life" concept
 5. careful TD3, element-wise minimum of 3 sub-nets
 6. fading replay buffer: old transitions fade away gradually
+7. no multi-agents
 
 ver 2.0 includes:
 
-7. reduced objective to learn Bellman's sum of dumped reward's variance
-8. improve reward variance through immediate Advantage
+8. reduced objective to learn Bellman's sum of dumped reward's variance
+9. improve reward variance through immediate Advantage
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
 
