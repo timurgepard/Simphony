@@ -5,6 +5,7 @@ Sorry for solving Mujoco and other environments, I have group of orphans who are
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
+The algorithm is cleaned, 248 lines, includes:
 1. harmonization of the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
 3. "immediate" Advantage
