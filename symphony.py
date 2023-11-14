@@ -199,7 +199,7 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=3.0, capacity=10000000):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, capacity=10000000):
         self.capacity, self.length, self.device = capacity, 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
