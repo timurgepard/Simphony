@@ -15,7 +15,7 @@ The algorithm is cleaned, 248 lines, includes:
 
 ver 2.0 includes:
 
-7. reduced objective to learn Bellman's sum of dumped reward variance
+7. reduced objective to learn Bellman's sum of dumped reward's variance
 8. improve reward variance through immediate Advantage
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
