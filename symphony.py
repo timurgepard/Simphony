@@ -200,8 +200,8 @@ class Symphony(object):
 
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, fade_factor=3.0, capacity=10000000):
-        self.capacity, self.idx, self.device = capacity, 0, device
-        self.batch_size = min(max(128, self.idx//500), 1024) #in order for sample to describe population
+        self.capacity, self.length, self.device = capacity, 0, device
+        self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes = [], np.array([])
         self.buffer = deque(maxlen=capacity)
@@ -215,18 +215,18 @@ class ReplayBuffer:
         reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
         self.buffer.append([state, action, reward, next_state, done])
-        self.batch_size = min(max(128,self.idx//500), 1024)
+        self.batch_size = min(max(128,self.length//500), 1024)
 
-        if self.idx<=self.capacity:
-            self.indices.append(self.idx)
+        if self.length<=self.capacity:
+            self.indices.append(self.length)
             self.indexes = np.array(self.indices)
 
-        self.idx += 1
+        self.length += 1
         
 
     def generate_probs(self):
         def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
-        weights = 1e-7*(fade(self.indexes/self.idx))# weights are based solely on the history, highly squashed
+        weights = 1e-7*(fade(self.indexes/self.length))# weights are based solely on the history, highly squashed
         return weights/np.sum(weights)
 
 
@@ -245,4 +245,4 @@ class ReplayBuffer:
 
 
     def __len__(self):
-        return self.idx
+        return self.length
