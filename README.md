@@ -26,9 +26,10 @@ ver 2.0 includes:
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167)  |  ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |
 
-|  HalfCheetah | Walker-v4 |
+|  Ant-v4 | Walker-v4 |
 | ------------- | ------------- |
-|   | ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b)
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/339e559b-27cd-47d8-8e1d-3453512f2aec)
+  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b)
 
  |
 
