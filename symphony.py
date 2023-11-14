@@ -48,16 +48,6 @@ class FourierSeries(nn.Module):
             nn.Linear(hidden_dim, f_out)
         )
 
-        """
-        self.fft = nn.Sequential(
-            nn.Linear(f_in, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
-            Sine(),
-            nn.LeakyReLU(0.1),
-            nn.Linear(hidden_dim, f_out)
-        )
-        """
 
     def forward(self, x):
         return self.fft(x)
@@ -71,12 +61,7 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
-        """
-        self.net = nn.Sequential(
-            FourierSeries(state_dim, hidden_dim, action_dim),
-            nn.Tanh()
-        )
-        """
+
         self.input = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
@@ -86,7 +71,6 @@ class Actor(nn.Module):
             FourierSeries(hidden_dim, action_dim),
             nn.Tanh()
         )
-        
 
         self.max_action = torch.mean(max_action).item()
 
@@ -117,16 +101,6 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
-
-
-
-        """
-        self.qA = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.qB = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        self.qC = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-
-        self.s2 = FourierSeries(state_dim+action_dim, hidden_dim, 1)
-        """
         
         self.input = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
