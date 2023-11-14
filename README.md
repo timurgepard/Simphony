@@ -3,7 +3,7 @@
 
 Sorry for solving Mujoco and other environments, I have group of orphans who are less protected at this period, I need to support them, and my family, of course
 
-Though algorithm is quite short, I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
+Though algorithm is 248 lines, I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
 1. harmonization of the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
