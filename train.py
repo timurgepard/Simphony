@@ -15,10 +15,10 @@ print(device)
 
 #global parameters
 #1 environment type
-option = 5
+option = 4
 
 explore_time = 5000
-tr_between_ep = 30 # training between episodes
+tr_between_ep = 70 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -33,33 +33,30 @@ max_action = 1.0
 
 if option == 1:
     fade_factor = 5.0
-    tr_between_ep = 70
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 2:
     fade_factor = 5.0
-    tr_between_ep = 70
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 3:
     fade_factor = 7.0
-    tr_between_ep = 70
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 4:
     fade_factor = 10.0
-    tr_between_ep = 70
+    tr_between_ep = 140
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
+
 elif option == 5:
     fade_factor = 7.0
-    tr_between_ep = 70
     env = gym.make('Ant-v4')
-    env_test = gym.make('Ant-v4')
+    env_test = gym.make('Ant-v4', render_mode="human")
     #Ant environment has problem when Ant is flipped upside down but it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
     angle_limit = 0.3
     #less aggressive movements -> faster learning but less final speed
