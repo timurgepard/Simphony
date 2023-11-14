@@ -13,8 +13,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 #global parameters
-#1 BipedalWalker, 2 Humanoid
-option = 3
+#1 environment type
+option = 5
 
 explore_time = 5000
 tr_between_ep = 30 # training between episodes
@@ -54,6 +54,11 @@ elif option == 4:
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
+elif option == 5:
+    fade_factor = 7.0
+    tr_between_ep = 70
+    env = gym.make('Ant-v4')
+    env_test = gym.make('Ant-v4', render_mode="human")
 
 
 
