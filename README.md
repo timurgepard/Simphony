@@ -28,7 +28,8 @@ ver 2.0 includes:
 
 |  HalfCheetah | Walker-v4 |
 | ------------- | ------------- |
-|   | ![image](https://github.com/timurgepard/Simphony/assets/13238473/4894b426-1bb7-4e60-9e6c-1f596d097370)
+|   | ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b)
+
  |
 
 
