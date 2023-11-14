@@ -15,8 +15,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 ver 2.0 includes:
 
 7. reduced objective to learn Bellman's sum of dumped reward variance
-   
-7.1 improve reward variance through immediate Advantage
+8. improve reward variance through immediate Advantage
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
