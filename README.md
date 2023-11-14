@@ -17,7 +17,7 @@ ver 2.0 includes:
 7. reduced objective to learn Bellman's sum of dumped reward variance
 8. improve reward variance through immediate Advantage
 
-   My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
+   P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
