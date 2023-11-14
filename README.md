@@ -13,11 +13,12 @@ The algorithm is cleaned, 248 lines, includes:
 4. "movement is life" concept
 5. careful TD3, element-wise minimum of 3 sub-nets
 6. fading replay buffer: old transitions fade away gradually
+7. without multi-agents (but can be added)
 
 ver 2.0 includes:
 
-7. reduced objective to learn Bellman's sum of dumped reward's variance
-8. improve reward variance through immediate Advantage
+8. reduced objective to learn Bellman's sum of dumped reward's variance
+9. improve reward variance through immediate Advantage
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
 
