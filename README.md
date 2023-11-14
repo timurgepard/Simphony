@@ -5,11 +5,16 @@ Sorry for solving Mujoco and other environments, I have group of orphans who are
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
+1. harmonization of the neural network
+2. careful TD3, element-wise minimum.
+3. rectified Huber symmetrical/assymetrical error loss functions
+4. "movement is life" concept
+5. fading replay buffer: old transitions fade away gradually
+
 ver 2.0 includes:
 
-reduced objective to learn Bellman's sum of dumped reward variance
-
-improve reward variance through immediate Advantage
+1. reduced objective to learn Bellman's sum of dumped reward variance
+2. improve reward variance through immediate Advantage
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
@@ -27,14 +32,10 @@ improve reward variance through immediate Advantage
 
 
 
-1. harmonization of the neural network
-2. careful TD3, element-wise minimum.
-3. rectified Huber symmetrical/assymetrical error loss functions
-4. "movement is life" concept
+
    
    additionally:
-5. fading replay buffer: old transitions fade away gradually
-6. random initialization prevent the same initial states in the buffer.
-7. exploration-nois
+5. random initialization prevent the same initial states in the buffer.
+6. exploration-nois
 
    My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
