@@ -31,12 +31,11 @@ hidden_dim = 256
 
 
 if option == 1:
-    fade_factor = 3.0
-    tr_between_ep = 30
-    limit_step = 10000
+    fade_factor = 5.0
+    tr_between_ep = 70
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    
+
 elif option == 2:
     fade_factor = 5.0
     tr_between_ep = 70
@@ -44,14 +43,14 @@ elif option == 2:
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 3:
-    fade_factor = 5.0
+    fade_factor = 7.0
     tr_between_ep = 70
-    env = gym.make('Ant-v4')
-    env_test = gym.make('Ant-v4', render_mode="human")
+    env = gym.make('Walker2d-v4')
+    env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 4:
-    fade_factor = 7.0
-    tr_between_ep = 170
+    fade_factor = 10.0
+    tr_between_ep = 70
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
