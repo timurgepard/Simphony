@@ -9,7 +9,8 @@
 
 |  HalfCheetah | Walker-v2 |
 | ------------- | ------------- |
-|   |  ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167) |
+|   | ![image](https://github.com/timurgepard/Simphony/assets/13238473/4fd1214a-d661-44c9-87b3-d7925b39862e)
+ |
 
 
 
