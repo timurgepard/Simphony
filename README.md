@@ -9,7 +9,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 2. rectified Huber symmetrical/assymetrical error loss functions
 3. "immediate" Advantage
 4. "movement is life" concept
-5. careful TD3, element-wise minimum of 3 sub-nets,
+5. careful TD3, element-wise minimum of 3 sub-nets
 6. fading replay buffer: old transitions fade away gradually
 
 ver 2.0 includes:
