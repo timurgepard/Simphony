@@ -6,7 +6,7 @@ Sorry for solving Mujoco and other environments, I have group of orphans who are
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 
 1. harmonization of the neural network
-2. careful TD3, element-wise minimum.
+2. careful TD3, element-wise minimum of 3 sub-nets
 3. rectified Huber symmetrical/assymetrical error loss functions
 4. "movement is life" concept
 5. fading replay buffer: old transitions fade away gradually
