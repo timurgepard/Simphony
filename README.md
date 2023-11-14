@@ -7,14 +7,15 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 
 1. harmonization of the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
-3. "movement is life" concept
-4. careful TD3, element-wise minimum of 3 sub-nets, immediate Advantage
-5. fading replay buffer: old transitions fade away gradually
+3. immediate Advantage
+4. "movement is life" concept
+5. careful TD3, element-wise minimum of 3 sub-nets,
+6. fading replay buffer: old transitions fade away gradually
 
 ver 2.0 includes:
 
-1. reduced objective to learn Bellman's sum of dumped reward variance
-2. improve reward variance through immediate Advantage
+7. reduced objective to learn Bellman's sum of dumped reward variance
+7.1 improve reward variance through immediate Advantage
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
