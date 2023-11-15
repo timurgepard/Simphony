@@ -21,6 +21,7 @@ ver 2.0 includes:
 9. improve reward variance through immediate Advantage
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him.
+   I want to say thanks to the "University of Szeged" for providing me space and desctop computer with NVidia RTX 3060.
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
