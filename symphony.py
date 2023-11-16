@@ -1,14 +1,15 @@
+#This is the second version of Symphony algorithm.
+#The learning speed is slowed down by approx 20% to learn and increase Q variance.
+#This can be viewed as an obstacle in learning in order to find more solutions
+
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import copy
 import math
-from collections import deque
 
-explore_noise = 0.2 #kickstarter during exploration
-stall_penalty = 0.03 #moving is life, stalling is dangerous
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # random seeds
@@ -82,7 +83,7 @@ class Actor(nn.Module):
         if self.eps<1e-4: return False
         if self.eps>=0.07:
             with torch.no_grad():
-                self.eps = explore_noise * self.max_action * (math.cos(self.x_coor) + 1.0)
+                self.eps = 0.2 * self.max_action * (math.cos(self.x_coor) + 1.0)
                 self.lim = 2.5*self.eps
                 self.x_coor += 3e-5
         return True
@@ -92,7 +93,7 @@ class Actor(nn.Module):
         x = self.input(state)
         x = self.max_action*self.net(x)
         if mean: return x
-        if explore_noise and self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -199,30 +200,50 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, capacity=10000000):
-        self.capacity, self.length, self.device = capacity, 0, device
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, stall_penalty=0.03):
+        self.capacity, self.length, self.device = 1000000, 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes = [], np.array([])
-        self.buffer = deque(maxlen=capacity)
         self.fade_factor = fade_factor
+        self.stall_penalty = stall_penalty
+
+        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
+        self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
+        self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
+        self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
+        self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
 
     def add(self, state, action, reward, next_state, done):
+        if self.length<self.capacity: self.length += 1
+        idx = self.length-1
         
         #moving is life, stalling is dangerous
         delta = np.mean(np.abs(next_state - state))
-        reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+        reward += self.stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
-        self.buffer.append([state, action, reward, next_state, done])
+        self.states[idx,:] = torch.FloatTensor(state)
+        self.actions[idx,:] = torch.FloatTensor(action)
+        self.rewards[idx,:] = torch.FloatTensor([reward])
+        self.next_states[idx,:] = torch.FloatTensor(next_state)
+        self.dones[idx,:] = torch.FloatTensor([done])
+
         self.batch_size = min(max(128,self.length//500), 1024)
 
         if self.length<=self.capacity:
             self.indices.append(self.length)
             self.indexes = np.array(self.indices)
-
-        self.length += 1
+            
         
+        if self.length==self.capacity:
+            self.states = torch.roll(self.states, shifts=-1, dims=0)
+            self.actions = torch.roll(self.actions, shifts=-1, dims=0)
+            self.rewards = torch.roll(self.rewards, shifts=-1, dims=0)
+            self.next_states = torch.roll(self.next_states, shifts=-1, dims=0)
+            self.dones = torch.roll(self.dones, shifts=-1, dims=0)
+
+       
 
     def generate_probs(self):
         def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
@@ -231,16 +252,14 @@ class ReplayBuffer:
 
 
     def sample(self):
-        batch_indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
-        batch = [self.buffer[indx-1] for indx in batch_indices]
-        states, actions, rewards, next_states, dones = map(np.vstack, zip(*batch))
+        indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
         
         return (
-            torch.FloatTensor(states).to(self.device),
-            torch.FloatTensor(actions).to(self.device),
-            torch.FloatTensor(rewards).to(self.device),
-            torch.FloatTensor(next_states).to(self.device),
-            torch.FloatTensor(dones).to(self.device),
+            self.states[indices],
+            self.actions[indices],
+            self.rewards[indices],
+            self.next_states[indices],
+            self.dones[indices]
         )
 
 
