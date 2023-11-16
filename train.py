@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 #global parameters
-#1 environment type
+# environment type. Different Environments have some details that you need to bear in mind.
 option = 4
 
 explore_time = 5000
@@ -29,9 +29,18 @@ total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
 hidden_dim = 256
 max_action = 1.0
+fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
+stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
 
 
-if option == 1:
+if option == 0:
+    limit_step = 300
+    tr_between_ep = 30
+    stall_penalty = 0.07
+    env = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+
+elif option == 1:
     fade_factor = 5.0
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
@@ -42,23 +51,27 @@ elif option == 2:
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 3:
-    fade_factor = 7.0
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 4:
-    fade_factor = 10.0
-    tr_between_ep = 140
+    tr_between_ep = 200
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
-
 elif option == 5:
-    fade_factor = 7.0
+    limit_step = 300
+    tr_between_ep = 30
+    stall_penalty = 0.07
+    env = gym.make('HumanoidStandup-v4')
+    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
+
+
+elif option == 6:
     env = gym.make('Ant-v4')
     env_test = gym.make('Ant-v4', render_mode="human")
-    #Ant environment has problem when Ant is flipped upside down but it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
-    angle_limit = 0.3
+    #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
+    angle_limit = 0.4
     #less aggressive movements -> faster learning but less final speed
     max_action = 0.7
 
@@ -68,9 +81,8 @@ state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
-
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
-replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor)
+replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, stall_penalty)
 algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
 
 
@@ -119,7 +131,7 @@ try:
         if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
     print('buffer loaded, buffer length', len(replay_buffer))
 
-    start_episode = len(total_steps) - 1
+    start_episode = len(total_steps)
 
 except:
     print("problem during loading buffer")
@@ -144,6 +156,8 @@ def init_weights(m):
 for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
+
+    if i>=1400: tr_between_ep = 70
 
     
 
@@ -174,11 +188,21 @@ for i in range(start_episode, num_episodes):
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
-        #Ant environment has problem when Ant is flipped upside down but it is not detected (rotation around x is not checked), we can check to save some time:
+
+        #==============counters issues with environments================
+
+        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
         if env.spec.id.find("Ant") != -1:
             if (next_state[1]<angle_limit): done = True
             if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
+        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
+        elif env.spec.id.find("Humanoid-") != -1:
+            reward += next_state[0]
+        #===============================================================
+
         
+
+
         replay_buffer.add(state, action, reward, next_state, done)
         if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
@@ -199,7 +223,7 @@ for i in range(start_episode, num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i%5==0): 
+        if (i%50==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
