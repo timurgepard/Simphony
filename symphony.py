@@ -115,7 +115,7 @@ class Critic(nn.Module):
         x = self.input(x)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        return torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values, xs[-1]
+        return torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values, xs[3]
 
 
 
