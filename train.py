@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 4
+option = 5
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
@@ -36,7 +36,6 @@ stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.
 if option == 0:
     limit_step = 300
     tr_between_ep = 30
-    stall_penalty = 0.07
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
@@ -62,9 +61,8 @@ elif option == 4:
 elif option == 5:
     limit_step = 300
     tr_between_ep = 30
-    stall_penalty = 0.07
     env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
+    env_test = gym.make('HumanoidStandup-v4')
 
 
 elif option == 6:
@@ -87,7 +85,9 @@ algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
 
 
 
-
+#used to create random initalization in Actor -> less dependendance on the specific random seed.
+def init_weights(m):
+    if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
 
 
 #testing model
@@ -142,29 +142,26 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, 2000, 10)
+    testing(env_test, limit_step, 10)
 except:
     print("problem during loading models")
 
 #-------------------------------------------------------------------------------------
 
 
-#used to create random initalization in Actor -> less dependendance on the specific random seed.
-def init_weights(m):
-    if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
-
 for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
 
-    if i>=1400: tr_between_ep = 70
+    #----------------------------pre-processing------------------------------
 
-    
-
+    rb_len = len(replay_buffer)
+    #--------------0. increase ep training: initial -> from 70 to 100-------------
+    if rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
-    if not policy_training and len(replay_buffer)<explore_time: algo.actor.apply(init_weights)
+    if not policy_training and rb_len<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
     for steps in range(0, 2):
@@ -201,8 +198,6 @@ for i in range(start_episode, num_episodes):
         #===============================================================
 
         
-
-
         replay_buffer.add(state, action, reward, next_state, done)
         if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
@@ -223,7 +218,7 @@ for i in range(start_episode, num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i%50==0): 
+        if (i%25==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
@@ -234,6 +229,6 @@ for i in range(start_episode, num_episodes):
 
 
         #-----------------validation-------------------------
-        if (i>=start_test and i%50==0): testing(env_test, limit_step=2000, test_episodes=10)
+        if (i>=start_test and i%50==0): testing(env_test, limit_step=limit_step, test_episodes=10)
               
         #====================================================
