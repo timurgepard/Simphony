@@ -97,7 +97,6 @@ class Actor(nn.Module):
         return x.clamp(-self.max_action, self.max_action)
 
 
-        
 # Define the critic network
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
@@ -108,20 +107,16 @@ class Critic(nn.Module):
             nn.LayerNorm(hidden_dim)
         )
 
-        self.qA = FourierSeries(hidden_dim, 1)
-        self.qB = FourierSeries(hidden_dim, 1)
-        self.qC = FourierSeries(hidden_dim, 1)
-
-        self.s2 = FourierSeries(hidden_dim, 1)
+        self.nets = nn.ModuleList([FourierSeries(hidden_dim, 1) for x in range(4)])
         
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
         x = self.input(x)
-        qA, qB, qC, s2 = self.qA(x), self.qB(x), self.qC(x), self.s2(x)
-        if not united: return (qA, qB, qC, s2)
-        stack = torch.stack([qA, qB, qC], dim=-1)
-        return torch.min(stack, dim=-1).values, s2
+        xs = [net(x) for net in self.nets]
+        if not united: return xs
+        return torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values, xs[-1]
+
 
 
 
@@ -170,8 +165,9 @@ class Symphony(object):
             q_value = reward +  (1-done) * 0.99 * q_next_target
             s2_value =  1e-3 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
 
-        qA, qB, qC, s2 = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC) + ReHE(s2_value - s2)
+        out = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - out[0]) + ReHE(q_value - out[1]) + ReHE(q_value - out[2]) + ReHE(s2_value - out[3])
+        
 
 
         self.critic_optimizer.zero_grad()
@@ -198,17 +194,16 @@ class Symphony(object):
 
 
 
-
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, fade_factor=7.0, stall_penalty=0.03):
-        self.capacity, self.length, self.device = 1000000, 0, device
+        self.capacity, self.length, self.device = 500000, 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes = [], np.array([])
         self.fade_factor = fade_factor
         self.stall_penalty = stall_penalty
 
-        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
+        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32)
         self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
         self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
@@ -232,7 +227,7 @@ class ReplayBuffer:
         self.batch_size = min(max(128,self.length//500), 1024)
 
         if self.length<=self.capacity:
-            self.indices.append(self.length)
+            self.indices.append(self.length-1)
             self.indexes = np.array(self.indices)
             
         
@@ -255,13 +250,15 @@ class ReplayBuffer:
         indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
         
         return (
-            self.states[indices],
-            self.actions[indices],
-            self.rewards[indices],
-            self.next_states[indices],
-            self.dones[indices]
+            self.states[indices].to(self.device),
+            self.actions[indices].to(self.device),
+            self.rewards[indices].to(self.device),
+            self.next_states[indices].to(self.device),
+            self.dones[indices].to(self.device)
         )
 
 
     def __len__(self):
         return self.length
+    
+
