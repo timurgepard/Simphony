@@ -35,7 +35,6 @@ stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.
 
 if option == 0:
     limit_step = 300
-    tr_between_ep = 30
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
@@ -60,7 +59,6 @@ elif option == 4:
 
 elif option == 5:
     limit_step = 300
-    tr_between_ep = 30
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4')
 
@@ -156,7 +154,7 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
 
     rb_len = len(replay_buffer)
-    #--------------0. increase ep training: initial -> from 70 to 100-------------
+    #--------------0. increase ep training: initial -> 70 to 100-------------
     if rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
