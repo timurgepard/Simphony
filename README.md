@@ -4,6 +4,7 @@
 Sorry for solving Mujoco and other environments, I have group of orphans who are less protected at this period, I need to support them, and my family, of course
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
+email: timur.ishuov@gmail.com
 
 The algorithm is cleaned, 248 lines, includes:
 
