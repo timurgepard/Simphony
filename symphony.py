@@ -242,8 +242,8 @@ class ReplayBuffer:
 
 
     def generate_probs(self):
-        def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
         if self.step>self.capacity: return self.probs
+        def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
         weights = 1e-7*(fade(self.indexes/self.length))# weights are based solely on the history, highly squashed
         self.probs = weights/np.sum(weights)
         return self.probs
