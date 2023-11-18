@@ -202,7 +202,7 @@ class ReplayBuffer:
         self.fade_factor = fade_factor
         self.stall_penalty = stall_penalty
 
-        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32)
+        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
         self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
@@ -222,11 +222,11 @@ class ReplayBuffer:
         delta = np.mean(np.abs(next_state - state))
         reward += self.stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
-        self.states[idx,:] = torch.FloatTensor(state)
-        self.actions[idx,:] = torch.FloatTensor(action)
-        self.rewards[idx,:] = torch.FloatTensor([reward])
-        self.next_states[idx,:] = torch.FloatTensor(next_state)
-        self.dones[idx,:] = torch.FloatTensor([done])
+        self.states[idx,:] = torch.FloatTensor(state).to(self.device)
+        self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
+        self.rewards[idx,:] = torch.FloatTensor([reward]).to(self.device)
+        self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
+        self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
         self.batch_size = min(max(128,self.length//500), 1024)
 
@@ -253,11 +253,11 @@ class ReplayBuffer:
         indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
 
         return (
-            self.states[indices].to(self.device),
-            self.actions[indices].to(self.device),
-            self.rewards[indices].to(self.device),
-            self.next_states[indices].to(self.device),
-            self.dones[indices].to(self.device)
+            self.states[indices],
+            self.actions[indices],
+            self.rewards[indices],
+            self.next_states[indices],
+            self.dones[indices]
         )
 
 
