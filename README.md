@@ -17,7 +17,7 @@ The algorithm is cleaned, 265 lines, includes:
 4. "movement is life" concept
 5. careful TD3, element-wise minimum of 3 sub-nets
 6. fading replay buffer: old transitions fade away gradually
-7. without multi-agents, model-free (but can be added)
+7. without multi-agents, model-free
 
 ver 2.0 includes:
 
