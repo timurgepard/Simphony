@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 6
+option = 0
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
@@ -65,6 +65,8 @@ elif option == 5:
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
 elif option == 6:
+    limit_step = 200
+    tr_between_ep = 30
     env = gym.make('Pusher-v4')
     env_test = gym.make('Pusher-v4', render_mode="human")
 
