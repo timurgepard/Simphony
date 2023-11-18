@@ -7,7 +7,7 @@ I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKY
 email: timur.ishuov@gmail.com
 if you want to support me: 4400 4301 8810 7871 (VISA)
 
-The algorithm is cleaned, 248 lines, includes:
+The algorithm is cleaned, 265 lines, includes:
 
 1. harmonization of the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
