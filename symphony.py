@@ -1,6 +1,7 @@
 #This is the second version of Symphony algorithm.
-#The learning speed is slowed down by approx 20% to learn and increase Q variance.
-#This can be viewed as an obstacle in learning in order to find more solutions
+#The learning speed is slowed down by approx 20% to learn (Bellemare et al) and increase (something new) Q variance.
+#Advantage in Q Variance's empirically has gradient with relation to actions.
+#This can be viewed as searching for different solutions to achieve the same target
 
 
 import torch
