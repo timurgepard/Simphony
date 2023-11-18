@@ -193,13 +193,12 @@ class Symphony(object):
 
 
 
-
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, fade_factor=7.0, stall_penalty=0.03):
         self.capacity, self.length, self.device = 500000, 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
-        self.indices, self.indexes = [], np.array([])
+        self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
         self.stall_penalty = stall_penalty
 
@@ -210,10 +209,15 @@ class ReplayBuffer:
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
 
+
     def add(self, state, action, reward, next_state, done):
-        if self.length<self.capacity: self.length += 1
+        if self.length<self.capacity:
+            self.length += 1
+            self.indices.append(self.length-1)
+            self.indexes = np.array(self.indices)
+
         idx = self.length-1
-        
+
         #moving is life, stalling is dangerous
         delta = np.mean(np.abs(next_state - state))
         reward += self.stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
@@ -226,11 +230,7 @@ class ReplayBuffer:
 
         self.batch_size = min(max(128,self.length//500), 1024)
 
-        if self.length<=self.capacity:
-            self.indices.append(self.length-1)
-            self.indexes = np.array(self.indices)
-            
-        
+
         if self.length==self.capacity:
             self.states = torch.roll(self.states, shifts=-1, dims=0)
             self.actions = torch.roll(self.actions, shifts=-1, dims=0)
@@ -238,17 +238,20 @@ class ReplayBuffer:
             self.next_states = torch.roll(self.next_states, shifts=-1, dims=0)
             self.dones = torch.roll(self.dones, shifts=-1, dims=0)
 
-       
+        self.step += 1
+
 
     def generate_probs(self):
         def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
+        if self.step>self.capacity: return self.probs
         weights = 1e-7*(fade(self.indexes/self.length))# weights are based solely on the history, highly squashed
-        return weights/np.sum(weights)
+        self.probs = weights/np.sum(weights)
+        return self.probs
 
 
     def sample(self):
         indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
-        
+
         return (
             self.states[indices].to(self.device),
             self.actions[indices].to(self.device),
@@ -260,5 +263,4 @@ class ReplayBuffer:
 
     def __len__(self):
         return self.length
-    
 
