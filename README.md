@@ -46,7 +46,7 @@ ver 2.0 includes:
 
    
    additionally:
-1. random initialization prevent the same initial states in the buffer
+1. slightly random initialization prevent the same initial states in the buffer
 2. exploration-noise in the beginning
 
    
