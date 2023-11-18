@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 5
+option = 6
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
@@ -35,11 +35,13 @@ stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.
 
 if option == 0:
     limit_step = 200
+    tr_between_ep = 30
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
 elif option == 1:
     fade_factor = 5.0
+    tr_between_ep = 30
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
@@ -60,10 +62,13 @@ elif option == 4:
 elif option == 5:
     limit_step = 300
     env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4')
-
+    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
 elif option == 6:
+    env = gym.make('Pusher-v4')
+    env_test = gym.make('Pusher-v4', render_mode="human")
+
+elif option == 7:
     env = gym.make('Ant-v4')
     env_test = gym.make('Ant-v4', render_mode="human")
     #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
@@ -145,6 +150,8 @@ except:
     print("problem during loading models")
 
 #-------------------------------------------------------------------------------------
+
+
 
 
 for i in range(start_episode, num_episodes):
