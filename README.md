@@ -26,7 +26,7 @@ ver 2.0 includes:
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
    
-   I want to say thanks to the "University of Szeged" for providing me space and desktop computer with AMD Ryzen 7 3800X and NVidia RTX 3060
+   I want to say thanks to the "University of Szeged" for providing me space in the University and personal desktop computer
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
