@@ -5,6 +5,7 @@ Sorry for solving Mujoco and other environments, I have group of orphans who are
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 email: timur.ishuov@gmail.com
+if you want to support me: 4400 4301 8810 7871 (VISA)
 
 The algorithm is cleaned, 248 lines, includes:
 
