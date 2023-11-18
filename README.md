@@ -11,7 +11,7 @@ if you want to support me: 4400 4301 8810 7871 (VISA)
 
 The algorithm is cleaned, 265 lines, includes:
 
-1. harmonization of the neural network
+1. harmonics in the neural network
 2. rectified Huber symmetrical/assymetrical error loss functions
 3. "immediate" Advantage (but excessive training)
 4. "movement is life" concept
