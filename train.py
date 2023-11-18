@@ -34,7 +34,7 @@ stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.
 
 
 if option == 0:
-    limit_step = 300
+    limit_step = 200
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
