@@ -18,7 +18,7 @@ print(device)
 option = 6
 
 explore_time = 5000
-tr_between_ep_init = 21 # training between episodes
+tr_between_ep_init = 12 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -65,18 +65,19 @@ elif option == 5:
     max_action = 0.7
 
 elif option == 6:
+    limit_step = 10000
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 7:
-    limit_step = 300
+    limit_step = 700
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
 elif option == 8:
-    limit_step = 300
-    env = gym.make('LunarLander-v2')
-    env_test = gym.make('LunarLander-v2', render_mode="human")
+    limit_step = 700
+    env = gym.make('LunarLanderContinuous-v2')
+    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
@@ -161,7 +162,7 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
 
     rb_len = len(replay_buffer)
-    #--------------0. increase ep training: init + 1 to 100-------------
+    #--------------0. increase ep training: init + (1 to 100)-------------
     tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=30 else tr_between_ep_init
     if tr_between_ep_init>30 and rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
@@ -228,7 +229,7 @@ for i in range(start_episode, num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i%25==0): 
+        if (i%5==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
@@ -239,7 +240,7 @@ for i in range(start_episode, num_episodes):
 
 
         #-----------------validation-------------------------
-        if (i>=start_test and i%50==0): testing(env_test, limit_step=limit_step, test_episodes=10)
+        if (i>=start_test and i%50==0): testing(env_test, limit_step=1000, test_episodes=10)
               
 
 #====================================================
