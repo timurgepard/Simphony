@@ -18,7 +18,7 @@ print(device)
 option = 2
 
 explore_time = 5000
-tr_between_ep_init = 30 # training between episodes, if <= 30, this number will rise gradually.
+tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -39,7 +39,6 @@ if option == 1:
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 2:
-    tr_between_ep_init = 70
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
@@ -50,7 +49,6 @@ elif option == 3:
 
 elif option == 4:
     limit_step = 300
-    tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
