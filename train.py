@@ -66,6 +66,7 @@ elif option == 6:
     max_action = 0.7
 
 elif option == 7:
+    tr_between_ep = 30
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
@@ -245,6 +246,6 @@ for i in range(start_episode, num_episodes):
               
 
 #====================================================
-# * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
+# * Apart from the algo core, tr_between_ep and limit_steps are crucial parameters for speed of training.
 #   E.g. limit_steps = 300 instead of 2000 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
 #   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
