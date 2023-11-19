@@ -69,6 +69,7 @@ elif option == 6:
 elif option == 7:
     fade_factor = 5.0
     limit_step = 10000
+    tr_between_ep = 5
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
