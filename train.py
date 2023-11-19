@@ -15,10 +15,10 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 7
+option = 6
 
 explore_time = 5000
-tr_between_ep = 70 # training between episodes
+tr_between_ep = 0 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -33,6 +33,11 @@ fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions
 stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
 
 
+if option == 0:
+    limit_step = 300 #*look at the end note
+    env = gym.make('Pendulum-v1')
+    env_test = gym.make('Pendulum-v1', render_mode="human")
+
 if option == 1:
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
@@ -42,7 +47,7 @@ elif option == 2:
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 3:
-    tr_between_ep = 200 #*look at the end note
+    tr_between_ep = 200 
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
@@ -52,12 +57,6 @@ elif option == 4:
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
 elif option == 5:
-    limit_step = 300
-    tr_between_ep = 5
-    env = gym.make('Pusher-v4')
-    env_test = gym.make('Pusher-v4', render_mode="human")
-
-elif option == 6:
     env = gym.make('Ant-v4')
     env_test = gym.make('Ant-v4', render_mode="human")
     #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
@@ -65,20 +64,17 @@ elif option == 6:
     #less aggressive movements -> faster learning but less final speed
     max_action = 0.7
 
-elif option == 7:
-    tr_between_ep = 30
+elif option == 6:
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
-elif option == 8:
+elif option == 7:
     limit_step = 300
-    tr_between_ep = 10
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
-elif option == 9:
+elif option == 8:
     limit_step = 300
-    tr_between_ep = 10
     env = gym.make('LunarLander-v2')
     env_test = gym.make('LunarLander-v2', render_mode="human")
 
@@ -165,7 +161,8 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
 
     rb_len = len(replay_buffer)
-    #--------------0. increase ep training: initial -> 70 to 100-------------
+    #--------------0. increase ep training: 0 to 100-------------
+    if tr_between_ep==0: tr_between_ep = rb_len//5000
     if rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
@@ -247,5 +244,5 @@ for i in range(start_episode, num_episodes):
 
 #====================================================
 # * Apart from the algo core, tr_between_ep and limit_steps are crucial parameters for speed of training.
-#   E.g. limit_steps = 300 instead of 2000 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
+#   E.g. limit_steps = 300 instead of 2000 introduce less variance and makes BipedalWalkerHardcore's Agent less discouraged to go forward.
 #   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
