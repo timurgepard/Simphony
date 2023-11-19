@@ -163,7 +163,7 @@ for i in range(start_episode, num_episodes):
     rb_len = len(replay_buffer)
     #--------------0. increase ep training: 0 to 100-------------
     tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=20 else tr_between_ep_init
-    if rb_len>=350000: tr_between_ep = rb_len//5000
+    if tr_between_ep_init>20 and rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
