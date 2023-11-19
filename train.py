@@ -39,6 +39,7 @@ if option == 0:
     env_test = gym.make('Pendulum-v1', render_mode="human")
 
 if option == 1:
+    fade_factor = 5
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
@@ -47,7 +48,7 @@ elif option == 2:
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 3:
-    tr_between_ep_init = 200 
+    tr_between_ep_init = 200
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
@@ -65,7 +66,7 @@ elif option == 5:
     max_action = 0.7
 
 elif option == 6:
-    tr_between_ep_init = 30
+    fade_factor = 5
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
@@ -244,6 +245,6 @@ for i in range(start_episode, num_episodes):
               
 
 #====================================================
-# * Apart from the algo core, tr_between_ep and limit_steps are crucial parameters for speed of training.
+# * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
 #   E.g. limit_steps = 300 instead of 2000 introduce less variance and makes BipedalWalkerHardcore's Agent less discouraged to go forward.
 #   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
