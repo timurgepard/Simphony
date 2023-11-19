@@ -69,7 +69,6 @@ elif option == 6:
 elif option == 7:
     fade_factor = 5.0
     limit_step = 10000
-    tr_between_ep = 30
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
@@ -78,6 +77,12 @@ elif option == 8:
     tr_between_ep = 5
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+
+elif option == 9:
+    limit_step = 300
+    tr_between_ep = 5
+    env = gym.make('LunarLander-v2')
+    env_test = gym.make('LunarLander-v2', render_mode="human")
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
