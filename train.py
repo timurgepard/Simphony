@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 1
+option = 7
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
@@ -53,7 +53,7 @@ elif option == 4:
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
 elif option == 5:
-    limit_step = 200
+    limit_step = 300
     tr_between_ep = 5
     env = gym.make('Pusher-v4')
     env_test = gym.make('Pusher-v4', render_mode="human")
@@ -68,6 +68,7 @@ elif option == 6:
 
 elif option == 7:
     fade_factor = 5.0
+    limit_step = 10000
     tr_between_ep = 30
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
@@ -200,6 +201,10 @@ for i in range(start_episode, num_episodes):
         #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
         elif env.spec.id.find("Humanoid-") != -1:
             reward += next_state[0]
+        #fear less of falling/terminating
+        elif env.spec.id.find("BipedalWalkerHardcore") != -1 or env.spec.id.find("LunarLander") != -1:
+            if reward==-100.0: reward = -50.0
+
         #===============================================================
 
         
@@ -240,4 +245,4 @@ for i in range(start_episode, num_episodes):
 #====================================================
 # * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
 #   E.g. limit_steps = 300 instead of 2000 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
-#   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning.
+#   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
