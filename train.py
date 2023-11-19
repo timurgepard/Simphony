@@ -39,6 +39,7 @@ if option == 1:
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 2:
+    tr_between_ep_init = 70
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
@@ -49,6 +50,7 @@ elif option == 3:
 
 elif option == 4:
     limit_step = 300
+    tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
