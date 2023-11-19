@@ -33,10 +33,6 @@ fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions
 stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
 
 
-if option == 0:
-    limit_step = 300 #*look at the end note
-    env = gym.make('Pendulum-v1')
-    env_test = gym.make('Pendulum-v1', render_mode="human")
 
 if option == 1:
     env = gym.make('HalfCheetah-v4')
