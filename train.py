@@ -18,7 +18,7 @@ print(device)
 option = 6
 
 explore_time = 5000
-tr_between_ep = 0 # training between episodes
+tr_between_ep_init = 20 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -47,7 +47,7 @@ elif option == 2:
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 3:
-    tr_between_ep = 200 
+    tr_between_ep_init = 200 
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
@@ -162,7 +162,7 @@ for i in range(start_episode, num_episodes):
 
     rb_len = len(replay_buffer)
     #--------------0. increase ep training: 0 to 100-------------
-    if tr_between_ep==0: tr_between_ep = rb_len//5000
+    tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=20 else tr_between_ep_init
     if rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
