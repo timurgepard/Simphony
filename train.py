@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 0
+option = 1
 
 explore_time = 5000
 tr_between_ep = 70 # training between episodes
