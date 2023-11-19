@@ -33,44 +33,36 @@ fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions
 stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
 
 
-if option == 0:
-    limit_step = 200
-    tr_between_ep = 30
-    env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+#fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
+# E.g. limit_steps = 150 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
+# high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning.
 
-elif option == 1:
-    fade_factor = 5.0
-    tr_between_ep = 30
-    env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3', render_mode="human")
-
-elif option == 2:
+if option == 1:
     fade_factor = 5.0
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
-elif option == 3:
+elif option == 2:
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
-elif option == 4:
+elif option == 3:
     tr_between_ep = 200
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4', render_mode="human")
 
-elif option == 5:
+elif option == 4:
     limit_step = 300
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
-elif option == 6:
+elif option == 5:
     limit_step = 200
-    tr_between_ep = 30
+    tr_between_ep = 5
     env = gym.make('Pusher-v4')
     env_test = gym.make('Pusher-v4', render_mode="human")
 
-elif option == 7:
+elif option == 6:
     env = gym.make('Ant-v4')
     env_test = gym.make('Ant-v4', render_mode="human")
     #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
@@ -78,7 +70,18 @@ elif option == 7:
     #less aggressive movements -> faster learning but less final speed
     max_action = 0.7
 
+elif option == 7:
+    limit_step = 150
+    tr_between_ep = 5
+    env = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
+elif option == 8:
+    fade_factor = 5.0
+    tr_between_ep = 30
+    env = gym.make('BipedalWalker-v3')
+    env_test = gym.make('BipedalWalker-v3', render_mode="human")
+    
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
