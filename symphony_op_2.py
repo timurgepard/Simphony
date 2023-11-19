@@ -107,7 +107,13 @@ class Critic(nn.Module):
             nn.LayerNorm(hidden_dim)
         )
 
-        self.nets = nn.ModuleList([FourierSeries(hidden_dim, 1) for x in range(4)])
+        qA = FourierSeries(hidden_dim, 1)
+        qB = FourierSeries(hidden_dim, 1)
+        qC = FourierSeries(hidden_dim, 1)
+
+        s2 = FourierSeries(hidden_dim, 1)
+
+        self.nets = nn.ModuleList([qA, qB, qC, s2])
         
 
     def forward(self, state, action, united=False):
