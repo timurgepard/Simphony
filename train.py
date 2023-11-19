@@ -6,7 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony import Symphony, ReplayBuffer
+from symphony_ver_2_0 import Symphony, ReplayBuffer
 import math
 
 
