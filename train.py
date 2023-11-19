@@ -33,12 +33,8 @@ fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions
 stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
 
 
-#fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
-# E.g. limit_steps = 150 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
-# high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning.
-
 if option == 1:
-    fade_factor = 5.0
+    fade_factor = 5.0 #*look at the end note
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
@@ -71,17 +67,16 @@ elif option == 6:
     max_action = 0.7
 
 elif option == 7:
-    limit_step = 150
-    tr_between_ep = 5
-    env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-
-elif option == 8:
     fade_factor = 5.0
     tr_between_ep = 30
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
-    
+
+elif option == 8:
+    limit_step = 300
+    tr_between_ep = 5
+    env = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
@@ -241,4 +236,8 @@ for i in range(start_episode, num_episodes):
         #-----------------validation-------------------------
         if (i>=start_test and i%50==0): testing(env_test, limit_step=limit_step, test_episodes=10)
               
-        #====================================================
+
+#====================================================
+# * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
+#   E.g. limit_steps = 300 instead of 2000 makes BipedalWalkerHardcore's Agent less discouraged to go forward, otherwise it can predict low Q values and stand at one place.
+#   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning.
