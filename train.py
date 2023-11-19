@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 6
+option = 1
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
@@ -39,7 +39,6 @@ if option == 0:
     env_test = gym.make('Pendulum-v1', render_mode="human")
 
 if option == 1:
-    fade_factor = 5
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
@@ -66,7 +65,6 @@ elif option == 5:
     max_action = 0.7
 
 elif option == 6:
-    fade_factor = 5
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
@@ -230,7 +228,7 @@ for i in range(start_episode, num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i%5==0): 
+        if (i%25==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
