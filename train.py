@@ -18,7 +18,7 @@ print(device)
 option = 6
 
 explore_time = 5000
-tr_between_ep_init = 10 # training between episodes, if <= 10, this number will rise gradually.
+tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -164,8 +164,8 @@ for i in range(start_episode, num_episodes):
 
     rb_len = len(replay_buffer)
     #--------------0. increase ep training: init + (1 to 100)-------------
-    tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=10 else tr_between_ep_init
-    if tr_between_ep_init>10 and rb_len>=350000: tr_between_ep = rb_len//5000
+    tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=30 else tr_between_ep_init
+    if tr_between_ep_init>30 and rb_len>=350000: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
