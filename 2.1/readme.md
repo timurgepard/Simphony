@@ -1,6 +1,7 @@
 # Symphony Opus 2.1
 
 This is an important add-on for Opus 2.
+
 It uses Simplified Attention Mechanism (FeedForward is all you need, our unpiblished technique) in Actor and Critic
 
 It is an addon, because without it the algorith can solve most of the tasks.
