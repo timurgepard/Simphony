@@ -11,7 +11,7 @@ if you want to support me: 4400 4301 8810 7871 (VISA)
 
 The algorithm is cleaned, 265 lines, includes:
 
-1. without multi-agents, model-free, off-policy (can work real-time)
+1. without multi-agents, model-free, off-policy (can work real-time) Actor and Critic
 2. harmonics in neural networks
 3. rectified Huber symmetrical/assymetrical error loss functions
 4. "immediate" Advantage (but excessive training)
