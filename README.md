@@ -40,7 +40,7 @@ ver 2.0 includes:
 
 |  LunarLander-v2 | |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/11cf2201-50e2-471b-849f-c609c794a7a7) |![LunarLander](https://github.com/timurgepard/Simphony/assets/13238473/4a00f734-cd63-44b5-8ccb-55d528d3e7d1
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/11cf2201-50e2-471b-849f-c609c794a7a7) |(![LunarLander](https://github.com/timurgepard/Simphony/assets/13238473/4a00f734-cd63-44b5-8ccb-55d528d3e7d1)
 )
  |
 
