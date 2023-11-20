@@ -40,7 +40,8 @@ All agents can be further improved if training continues, but only speed was con
 
 | BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/ffff1e53-184a-4c40-8ccb-ecaf7b1efc80)  |   |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/ffff1e53-184a-4c40-8ccb-ecaf7b1efc80)  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/04047e7d-5f43-404c-a76e-464ca897e0f6)
+  |
 
 
 |  Ant-v4 | Animation |
