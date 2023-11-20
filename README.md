@@ -33,18 +33,23 @@ ver 2.0 includes:
 
 All agents can be further improved if training continues, but only speed was concerned.
 
-| Humanoid-v4 (ver 1.0)  |  |
+| Humanoid-v4 (ver 1.0)  | Animation |
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |  ![Humanoid](https://github.com/timurgepard/Simphony/assets/13238473/ba2117a0-e03c-4c33-aab8-2395ab42b118)
    |
 
-| BipedalWalker-v3  | Humanoid-v4 (ver 1.0) |
+| BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167)  | |
 
-|  Ant-v4 | Walker-v4 |
+|  Ant-v4 | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/90cd49eb-e229-47db-998d-51c18b16850d)  | ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b)|
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/90cd49eb-e229-47db-998d-51c18b16850d)  | |
+
+
+|  Walker-v4 | Animation |
+| ------------- | ------------- |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b) | |
 
 |  LunarLander-v2 | |
 | ------------- | ------------- |
