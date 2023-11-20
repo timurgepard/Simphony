@@ -33,6 +33,11 @@ ver 2.0 includes:
 
 All agents can be further improved if training continues, but only speed was concerned.
 
+|  Ant-v4 | Animation |
+| ------------- | ------------- |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/90cd49eb-e229-47db-998d-51c18b16850d)  |![Ant](https://github.com/timurgepard/Simphony/assets/13238473/342f48a2-1610-43c4-86ad-8b3c3dc652b6)
+ |
+
 | Humanoid-v4 (ver 1.0)  | Animation |
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |  ![Humanoid](https://github.com/timurgepard/Simphony/assets/13238473/ba2117a0-e03c-4c33-aab8-2395ab42b118)
@@ -42,9 +47,6 @@ All agents can be further improved if training continues, but only speed was con
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167)  | |
 
-|  Ant-v4 | Animation |
-| ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/90cd49eb-e229-47db-998d-51c18b16850d)  | |
 
 
 |  Walker-v4 | Animation |
