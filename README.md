@@ -32,8 +32,8 @@ ver 2.0 includes:
 
 | Humanoid-v4 (ver 1.0)  |  |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) | ![humanoid_standup2](https://github.com/timurgepard/Simphony/assets/13238473/d0395369-3870-41bb-bcc8-88b5e4081093)
-    |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |  ![Humanoid](https://github.com/timurgepard/Simphony/assets/13238473/ba2117a0-e03c-4c33-aab8-2395ab42b118)
+   |
 
 | BipedalWalker-v3  | Humanoid-v4 (ver 1.0) |
 | ------------- | ------------- |
