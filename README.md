@@ -52,7 +52,8 @@ All agents can be further improved if training continues, but only speed was con
 
 |  Walker-v4 | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b) | |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/b9510d43-f8ab-462c-aa0e-6a398a7a2f8b) |![Walker-2d](https://github.com/timurgepard/Simphony/assets/13238473/154abb7e-f0a5-4ce7-9813-466e01b3795f)
+ |
 
 |  LunarLander-v2 | |
 | ------------- | ------------- |
