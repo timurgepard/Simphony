@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 2
+option = 6
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
@@ -40,6 +40,7 @@ if option == 1:
 
 elif option == 2:
     tr_between_ep_init = 70
+    stall_penalty = 0.1
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
@@ -63,11 +64,13 @@ elif option == 5:
     max_action = 0.7
 
 elif option == 6:
+    tr_between_ep_init = 40
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 7:
     limit_step = 700
+    stall_penalty = 0.1
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
@@ -191,7 +194,7 @@ for i in range(start_episode, num_episodes):
         rewards.append(reward)
 
         #==============counters issues with environments================
-
+        #(scores in report are not affected)
         #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
         if env.spec.id.find("Ant") != -1:
             if (next_state[1]<angle_limit): done = True
@@ -199,7 +202,7 @@ for i in range(start_episode, num_episodes):
         #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
         elif env.spec.id.find("Humanoid-") != -1:
             reward += next_state[0]
-        #fear less of falling/terminating
+        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
         elif env.spec.id.find("BipedalWalkerHardcore") != -1 or env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
 
@@ -210,7 +213,7 @@ for i in range(start_episode, num_episodes):
         if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
-            
+
 
     total_rewards.append(np.sum(rewards))
     average_reward = np.mean(total_rewards[-100:])
@@ -226,11 +229,11 @@ for i in range(start_episode, num_episodes):
     if policy_training:
 
         #--------------------saving-------------------------
-        if (i%25==0): 
+        if (i%1==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
-            #print("saving... len = ", len(replay_buffer), end="")
+            #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
                 pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
             #print(" > done")
@@ -242,5 +245,5 @@ for i in range(start_episode, num_episodes):
 
 #====================================================
 # * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
-#   E.g. limit_steps = 300 instead of 2000 introduce less variance and makes BipedalWalkerHardcore's Agent less discouraged to go forward.
+#   E.g. limit_steps = 700 instead of 2000 introduce less variance and makes BipedalWalkerHardcore's Agent less discouraged to go forward.
 #   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
