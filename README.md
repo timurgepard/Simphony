@@ -14,7 +14,7 @@ The algorithm is cleaned, 265 lines, includes:
 1. without multi-agents, model-free, off-policy (can work real-time) Actor and Critic
 2. harmonics in neural networks
 3. rectified Huber symmetrical/assymetrical error loss functions
-4. "immediate" Advantage (but excessive training)
+4. "immediate" Advantage (but excessive training, training between episodes)
 5. "movement is life" concept
 6. careful TD3, element-wise minimum of 3 sub-nets
 7. fading replay buffer: old transitions fade away gradually
