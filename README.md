@@ -29,10 +29,13 @@ ver 2.0 includes:
    I want to say thanks to the "University of Szeged" for providing me facilities to continue the research
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
+|  Humanoid-v4 (ver 2.0) |
+| ------------- | ------------- |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |     |
 
 | BipedalWalker-v3  | Humanoid-v4 (ver 1.0) |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167)  |  ![image](https://github.com/timurgepard/Simphony/assets/13238473/8684839b-bb1e-4b75-81f3-ad18751573cf) |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/6c06b33b-5ea1-4443-8431-9bcf234e9167)  | |
 
 |  Ant-v4 | Walker-v4 |
 | ------------- | ------------- |
