@@ -28,9 +28,10 @@ ver 2.0 includes:
    
    I want to say thanks to the "University of Szeged" for providing me facilities to continue the research
 
-All agents can be further improved if training continues, but only speed was concerned.
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
+
+All agents can be further improved if training continues, but only speed was concerned.
 
 | Humanoid-v4 (ver 1.0)  |  |
 | ------------- | ------------- |
