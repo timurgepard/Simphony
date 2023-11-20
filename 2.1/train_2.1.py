@@ -202,13 +202,34 @@ for i in range(start_episode, num_episodes):
     for steps in range(0, seq):
         next_state, reward, done, info, _ = env.step(action)
         rewards_report.append(reward)
-        state = next_state
-        
+
+
+        #==============counters issues with environments================
+        #(scores in report are not affected)
+        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
+        if env.spec.id.find("Ant") != -1:
+            if (next_state[1]<angle_limit): done = True
+            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
+        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
+        elif env.spec.id.find("Humanoid-") != -1:
+            reward += next_state[0]
+        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
+        elif env.spec.id.find("BipedalWalkerHardcore") != -1 or env.spec.id.find("LunarLander") != -1:
+            if reward==-100.0: reward = -50.0
+
+        #===============================================================
+
+        #moving is life, stalling is dangerous
+        delta = np.mean(np.abs(next_state - state))
+        reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+
         states.append(state)
         actions.append(action)
         rewards.append([reward])
         next_states.append(next_state)
         dones.append([done])
+
+        state = next_state
 
     #------------------------------training------------------------------
 
