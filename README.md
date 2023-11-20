@@ -11,13 +11,14 @@ if you want to support me: 4400 4301 8810 7871 (VISA)
 
 The algorithm is cleaned, 265 lines, includes:
 
-1. harmonics in neural networks
-2. rectified Huber symmetrical/assymetrical error loss functions
-3. "immediate" Advantage (but excessive training)
-4. "movement is life" concept
-5. careful TD3, element-wise minimum of 3 sub-nets
-6. fading replay buffer: old transitions fade away gradually
-7. without multi-agents, model-free
+1. without multi-agents, model-free, off-policy (can work real-time)
+2. harmonics in neural networks
+3. rectified Huber symmetrical/assymetrical error loss functions
+4. "immediate" Advantage (but excessive training)
+5. "movement is life" concept
+6. careful TD3, element-wise minimum of 3 sub-nets
+7. fading replay buffer: old transitions fade away gradually
+
 
 ver 2.0 includes:
 
