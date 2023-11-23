@@ -106,7 +106,7 @@ class Actor(nn.Module):
 
 # Define the critic network
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, device, seq, hidden_dim=32):
+    def __init__(self, state_dim, action_dim, device, seq, hidden_dim=32, critics_average=False):
         super(Critic, self).__init__()
         
         self.input = nn.Linear(state_dim+action_dim, hidden_dim)
@@ -118,6 +118,8 @@ class Critic(nn.Module):
         s2 = FourierTransform(seq, hidden_dim, action_dim, device)
 
         self.nets = nn.ModuleList([qA, qB, qC, s2])
+
+        self.critics_average = critics_average
         
 
     def forward(self, state, action, united=False):
@@ -125,18 +127,21 @@ class Critic(nn.Module):
         x = self.input(x)
         xs = [net(x).mean(dim=-1) for net in self.nets]
         if not united: return xs
-        return torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values, xs[3]
+        stack = torch.stack(xs[:3], dim=-1)
+        min = torch.min(stack, dim=-1).values
+        q = min if not self.critics_average else 0.7*min + 0.3*torch.mean(stack, dim=-1)
+        return q, xs[3]
 
 
 
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, seq, hidden_dim, device, max_action=1.0):
+    def __init__(self, state_dim, action_dim, seq, hidden_dim, device, max_action=1.0, critics_average=False):
 
         self.actor = Actor(state_dim, action_dim, device, seq, hidden_dim, max_action=max_action).to(device)
 
-        self.critic = Critic(state_dim, action_dim, device, seq, hidden_dim).to(device)
+        self.critic = Critic(state_dim, action_dim, device, seq, hidden_dim, critics_average).to(device)
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
@@ -206,12 +211,13 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, seq, fade_factor=7.0):
+    def __init__(self, state_dim, action_dim, device, seq, fade_factor=7.0, stall_penalty=0.03):
         self.capacity, self.length, self.device = 500000, 0, device
-        self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
+        self.batch_size = min(max(128, self.length//500), 256) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
+        self.stall_penalty = stall_penalty
         self.t = seq
 
         self.states = torch.zeros((self.capacity, seq, state_dim), dtype=torch.float32).to(device)
@@ -230,13 +236,22 @@ class ReplayBuffer:
 
         idx = self.length-1
 
-        self.states[idx, 0:self.t, :] = torch.FloatTensor(np.array(states, dtype=np.float32)).to(self.device)
-        self.actions[idx, 0:self.t, :] = torch.FloatTensor(np.array(actions, dtype=np.float32)).to(self.device)
-        self.rewards[idx, 0:self.t, :] = torch.FloatTensor(np.array(rewards, dtype=np.float32)).to(self.device)
-        self.next_states[idx, 0:self.t, :] = torch.FloatTensor(np.array(next_states, dtype=np.float32)).to(self.device)
-        self.dones[idx, 0:self.t, :] = torch.FloatTensor(np.array(dones, dtype=np.float32)).to(self.device)
+        states = np.array(states, dtype=np.float32)
+        actions = np.array(actions, dtype=np.float32)
+        rewards = np.array(rewards, dtype=np.float32)
+        next_states = np.array(next_states, dtype=np.float32)
+        dones = np.array(dones, dtype=np.float32)
 
-        self.batch_size = min(max(128,self.length//500), 1024)
+        delta = np.mean(np.abs(next_states - states), axis=-1, keepdims=True).clip(1e-3, 10.0)
+        rewards -= self.stall_penalty*np.log(1.0/delta)
+
+        self.states[idx, 0:self.t, :] = torch.FloatTensor(states).to(self.device)
+        self.actions[idx, 0:self.t, :] = torch.FloatTensor(actions).to(self.device)
+        self.rewards[idx, 0:self.t, :] = torch.FloatTensor(rewards).to(self.device)
+        self.next_states[idx, 0:self.t, :] = torch.FloatTensor(next_states).to(self.device)
+        self.dones[idx, 0:self.t, :] = torch.FloatTensor(dones).to(self.device)
+
+        self.batch_size = min(max(128,self.length//500), 256)
 
 
         if self.length==self.capacity:
