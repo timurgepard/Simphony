@@ -6,7 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony_Xtreme import Symphony, ReplayBuffer
+from symphony_op_2_1 import Symphony, ReplayBuffer
 import math
 
 
@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 7
+option = 1
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
@@ -29,67 +29,26 @@ total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
 hidden_dim = 256
 max_action = 1.0
-fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
+fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10-20 - ~50% of transitions, 100 - ~70% of transitions.
 stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
+critics_average = False
+seq = 7
 
-seq = 3 #to look just 3 steps behind can be optimal 
 
 if option == 1:
-    env = gym.make('HalfCheetah-v4')
-    env_test = gym.make('HalfCheetah-v4', render_mode="human")
-
-elif option == 2:
-    tr_between_ep_init = 70
-    stall_penalty = 0.1
-    env = gym.make('Walker2d-v4')
-    env_test = gym.make('Walker2d-v4', render_mode="human")
-
-elif option == 3:
-    tr_between_ep_init = 200
-    env = gym.make('Humanoid-v4')
-    env_test = gym.make('Humanoid-v4', render_mode="human")
-
-elif option == 4:
-    limit_step = 300
-    tr_between_ep_init = 70
-    env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
-
-elif option == 5:
-    env = gym.make('Ant-v4')
-    env_test = gym.make('Ant-v4', render_mode="human")
-    #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
-    angle_limit = 0.4
-    #less aggressive movements -> faster learning but less final speed
-    max_action = 0.7
-
-elif option == 6:
-    tr_between_ep_init = 40
-    env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3', render_mode="human")
-
-elif option == 7:
-    limit_step = 700
+    limit_step = 777
+    critics_average = True
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env_test = gym.make('BipedalWalkerHardcore-v3')
 
-elif option == 8:
-    limit_step = 700
-    env = gym.make('LunarLanderContinuous-v2')
-    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
-
-elif option == 9:
-    limit_step = 700
-    env = gym.make('Pusher-v4')
-    env_test = gym.make('Pusher-v4', render_mode="human")
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
-replay_buffer = ReplayBuffer(state_dim, action_dim, device, seq, fade_factor)
-algo = Symphony(state_dim, action_dim, seq, hidden_dim, device, max_action)
+replay_buffer = ReplayBuffer(state_dim, action_dim, device, seq, fade_factor, stall_penalty)
+algo = Symphony(state_dim, action_dim, seq, hidden_dim, device, max_action, critics_average)
 
 
 
@@ -121,7 +80,6 @@ def testing(env, limit_step, test_episodes):
             dones.append([done])
 
             state = next_state
-            if done: break
 
         for steps in range(1,limit_step+1):
             action = algo.select_action(states[-seq:])
@@ -191,8 +149,9 @@ for i in range(start_episode, num_episodes):
 
     rb_len = len(replay_buffer)
     #--------------0. increase ep training: init + (1 to 100)-------------
-    tr_between_ep = tr_between_ep_init + rb_len//5000 if tr_between_ep_init<=30 else tr_between_ep_init
-    if tr_between_ep_init>30 and rb_len>=350000: tr_between_ep = rb_len//5000
+    tr_between_ep = tr_between_ep_init
+    if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # from 70 to 100
+    if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
@@ -203,25 +162,6 @@ for i in range(start_episode, num_episodes):
         next_state, reward, done, info, _ = env.step(action)
         rewards_report.append(reward)
 
-
-        #==============counters issues with environments================
-        #(scores in report are not affected)
-        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
-        if env.spec.id.find("Ant") != -1:
-            if (next_state[1]<angle_limit): done = True
-            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
-        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
-        elif env.spec.id.find("Humanoid-") != -1:
-            reward += next_state[0]
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore") != -1 or env.spec.id.find("LunarLander") != -1:
-            if reward==-100.0: reward = -50.0
-
-        #===============================================================
-
-        #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state))
-        reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
         states.append(state)
         actions.append(action)
@@ -249,24 +189,6 @@ for i in range(start_episode, num_episodes):
         next_state, reward, done, info, _ = env.step(action)
         rewards_report.append(reward)
 
-        #==============counters issues with environments================
-        #(scores in report are not affected)
-        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
-        if env.spec.id.find("Ant") != -1:
-            if (next_state[1]<angle_limit): done = True
-            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
-        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
-        elif env.spec.id.find("Humanoid-") != -1:
-            reward += next_state[0]
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore") != -1 or env.spec.id.find("LunarLander") != -1:
-            if reward==-100.0: reward = -50.0
-
-        #===============================================================
-
-        #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state))
-        reward += stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
 
         states.append(state)
         actions.append(action)
