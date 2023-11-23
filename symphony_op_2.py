@@ -99,7 +99,7 @@ class Actor(nn.Module):
 
 # Define the critic network
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
+    def __init__(self, state_dim, action_dim, hidden_dim=32, critics_average=False):
         super(Critic, self).__init__()
         
         self.input = nn.Sequential(
@@ -114,6 +114,8 @@ class Critic(nn.Module):
         s2 = FourierSeries(hidden_dim, 1)
 
         self.nets = nn.ModuleList([qA, qB, qC, s2])
+
+        self.critics_average = critics_average
         
 
     def forward(self, state, action, united=False):
@@ -121,18 +123,21 @@ class Critic(nn.Module):
         x = self.input(x)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        return torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values, xs[3]
+        stack = torch.stack(xs[:3], dim=-1)
+        min = torch.min(stack, dim=-1).values
+        q = min if not self.critics_average else 0.7*min + 0.3*torch.mean(stack, dim=-1)
+        return q, xs[3]
 
 
 
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, critics_average=False):
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
-        self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
+        self.critic = Critic(state_dim, action_dim, hidden_dim, critics_average).to(device)
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
@@ -169,7 +174,7 @@ class Symphony(object):
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  1e-3 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
+            s2_value =  1e-3 * (1e-3*torch.var(reward) + (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
 
         out = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - out[0]) + ReHE(q_value - out[1]) + ReHE(q_value - out[2]) + ReHE(s2_value - out[3])
@@ -200,8 +205,9 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, stall_penalty=0.03):
-        self.capacity, self.length, self.device = 500000, 0, device
+    def __init__(self, state_dim, action_dim, capacity, device, fade_factor=7.0, stall_penalty=0.03):
+        capacity_dict = {"short": 100000, "medium": 300000, "full": 500000}
+        self.capacity, self.length, self.device = capacity_dict[capacity], 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
@@ -225,8 +231,8 @@ class ReplayBuffer:
         idx = self.length-1
 
         #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state))
-        reward += self.stall_penalty*(delta - math.log(max(1.0/(delta+1e-6), 1e-3)))
+        delta = np.mean(np.abs(next_state - state)).clip(1e-3, 1.0)
+        reward += self.stall_penalty*(delta - math.log10((1.0/(delta+1e-6))))
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
