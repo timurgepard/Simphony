@@ -174,7 +174,7 @@ class Symphony(object):
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  1e-3 * (1e-3*torch.var(reward) + (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
+            s2_value =  1e-3 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
 
         out = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - out[0]) + ReHE(q_value - out[1]) + ReHE(q_value - out[2]) + ReHE(s2_value - out[3])
@@ -231,8 +231,8 @@ class ReplayBuffer:
         idx = self.length-1
 
         #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state)).clip(1e-3, 1.0)
-        reward += self.stall_penalty*(delta - math.log10((1.0/(delta+1e-6))))
+        delta = np.mean(np.abs(next_state - state)).clip(1e-3, 10.0)
+        reward -= self.stall_penalty*math.log10(1.0/delta)
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
