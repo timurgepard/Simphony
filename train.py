@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 7
+option = 4
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
@@ -60,7 +60,6 @@ elif option == 3:
 elif option == 4:
     limit_step = 300
     tr_between_ep_init = 70
-    critics_average = True
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
@@ -80,7 +79,7 @@ elif option == 6:
 elif option == 7:
     limit_step = 777
     critics_average = True
-    capacity = "short"
+    fade_factor = 14
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
@@ -178,8 +177,8 @@ for i in range(start_episode, num_episodes):
     rb_len_treshold = 5000*tr_between_ep_init
     #---------------------0. increase ep training: -------------------------
     tr_between_ep = tr_between_ep_init
-    if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # from 70 to 100
-    if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000
+    if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
+    if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
     #---------------------------1. processor releave --------------------------
     if policy_training: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
