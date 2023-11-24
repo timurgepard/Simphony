@@ -32,7 +32,7 @@ ver 2.0 includes:
 
 ![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
-All agents can be further improved if training continues, but only speed was concerned.
+All agents can be further improved if training continues, but only episode numbers were concerned.
 
 |  LunarLander-v2 | Animation |
 | ------------- | ------------- |
