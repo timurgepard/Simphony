@@ -15,10 +15,10 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 4
+option = 7
 
 explore_time = 5000
-tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
+tr_between_ep_init = 15 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -41,14 +41,20 @@ capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory si
 # we take "anchored" average 0.7*min + 0.3*mean for "overcoming tasks" (BipedalWalkerHardcore), which unites advantages of TD3 and DDPG.
 critics_average = False #takes "anchored" average (or average with min baseline) between Critic subnets, default minimum.
 
+if option == -1:
+    env = gym.make('Pendulum-v1')
+    env_test = gym.make('Pendulum-v1', render_mode="human")
 
-if option == 1:
+elif option == 0:
+    env = gym.make('MountainCarContinuous-v0')
+    env_test = gym.make('MountainCarContinuous-v0', render_mode="human")
+
+elif option == 1:
     env = gym.make('HalfCheetah-v4')
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 2:
     tr_between_ep_init = 70
-    stall_penalty = 0.1
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
@@ -61,7 +67,7 @@ elif option == 4:
     limit_step = 300
     tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4')
+    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
 elif option == 5:
     env = gym.make('Ant-v4')
@@ -79,9 +85,10 @@ elif option == 6:
 elif option == 7:
     limit_step = 777
     critics_average = True
-    fade_factor = 14
+    fade_factor = 10
+    hidden_dim = 512
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env_test = gym.make('BipedalWalkerHardcore-v3')
 
 elif option == 8:
     limit_step = 700
@@ -160,7 +167,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_step, 10)
+    testing(env_test, limit_step, 100)
 except:
     print("problem during loading models")
 
