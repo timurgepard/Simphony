@@ -125,7 +125,7 @@ class Critic(nn.Module):
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
         x = self.input(x)
-        xs = [net(x).mean(dim=-1) for net in self.nets]
+        xs = [net(x).mean(dim=1) for net in self.nets]
         if not united: return xs
         stack = torch.stack(xs[:3], dim=-1)
         min = torch.min(stack, dim=-1).values
@@ -211,8 +211,9 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, seq, fade_factor=7.0, stall_penalty=0.03):
-        self.capacity, self.length, self.device = 500000, 0, device
+    def __init__(self, state_dim, action_dim, capacity, device, seq, fade_factor=7.0, stall_penalty=0.03):
+        capacity_dict = {"short": 100000, "medium": 300000, "full": 500000}
+        self.capacity, self.length, self.device = capacity_dict[capacity], 0, device
         self.batch_size = min(max(128, self.length//500), 256) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
