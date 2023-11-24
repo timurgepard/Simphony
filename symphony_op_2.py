@@ -19,12 +19,12 @@ torch.manual_seed(r1)
 np.random.seed(r2)
 
 
-#Rectified Hubber Error Loss Function
+#Rectified Huber Error Loss Function
 def ReHE(error):
     ae = torch.abs(error).mean()
     return ae*torch.tanh(ae)
 
-#Rectified Hubber Assymetric Error Loss Function
+#Rectified Huber Assymetric Error Loss Function
 def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
