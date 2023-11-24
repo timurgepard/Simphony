@@ -36,7 +36,7 @@ capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory si
 #TD3 has one bottleneck, when it takes minimum between predictions, and we even use element-wise minimum between 3 sub-nets.
 # each iteration it takes min -> min -> min, it can be compared with exp decaying function.
 # it is well suited for tasks where high level of balancing is involved.
-# but it is less suited for "overcoming tasks", if from 5 times agent scored -100.0, -100.0, -100.0, -100. and 30,
+# but it is less suited for "overcoming tasks with low terminal rewards", if from 5 times agent scored -100.0, -100.0, -100.0, -100. and 30,
 # minimum prediction will be value near -100.0 making an angent less interested to take any risky actions further.
 # we take "anchored" average 0.7*min + 0.3*mean for "overcoming tasks" (BipedalWalkerHardcore), which unites advantages of TD3 and DDPG.
 critics_average = False #takes "anchored" average (or average with min baseline) between Critic subnets, default minimum.
@@ -61,7 +61,7 @@ elif option == 4:
     limit_step = 300
     tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
+    env_test = gym.make('HumanoidStandup-v4')
 
 elif option == 5:
     env = gym.make('Ant-v4')
