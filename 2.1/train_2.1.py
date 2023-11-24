@@ -18,7 +18,7 @@ print(device)
 option = 1
 
 explore_time = 5000
-tr_between_ep_init = 15 # training between episodes, if <= 30, this number will rise gradually.
+tr_between_ep_init = 15 # training between episodes
 tr_per_step = 3 # training per frame
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -29,15 +29,25 @@ total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
 
 hidden_dim = 256
 max_action = 1.0
-fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10-20 - ~50% of transitions, 100 - ~70% of transitions.
-stall_penalty = 0.03 # moving is life, stalling is dangerous, optimal value = 0.03, higher values can create extra vibrations.
-critics_average = False
-seq = 7
+fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
+stall_penalty = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
+capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
+
+#TD3 has one bottleneck, when it takes minimum between predictions, and we even use element-wise minimum between 3 sub-nets.
+# each iteration it takes min -> min -> min, it can be compared with exp decaying function.
+# it is well suited for tasks where high level of balancing is involved.
+# but it is less suited for "overcoming tasks with low terminal rewards", if from 5 times agent scored -100.0, -100.0, -100.0, -100. and 30,
+# minimum prediction will be value near -100.0 making an angent less interested to take any risky actions further.
+# we take "anchored" average 0.7*min + 0.3*mean for "overcoming tasks" (BipedalWalkerHardcore), which unites advantages of TD3 and DDPG.
+critics_average = False #takes "anchored" average (or average with min baseline) between Critic subnets, default minimum.
+seq = 3
 
 
 if option == 1:
     limit_step = 777
     critics_average = True
+    fade_factor = 10
+    capacity = "medium"
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3')
 
@@ -47,7 +57,7 @@ action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
-replay_buffer = ReplayBuffer(state_dim, action_dim, device, seq, fade_factor, stall_penalty)
+replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, seq, fade_factor, stall_penalty)
 algo = Symphony(state_dim, action_dim, seq, hidden_dim, device, max_action, critics_average)
 
 
@@ -148,6 +158,7 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
 
     rb_len = len(replay_buffer)
+    rb_len_treshold = 5000*tr_between_ep_init
     #--------------0. increase ep training: init + (1 to 100)-------------
     tr_between_ep = tr_between_ep_init
     if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # from 70 to 100
