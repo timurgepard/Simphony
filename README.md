@@ -36,8 +36,7 @@ All agents can be further improved if training continues, but only episode numbe
 
 |  MountainCarContinuous-v0 | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/9df263d1-3ba5-4b8d-9c74-f543c58378e9) | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8f3fd563-f717-4b61-bbe3-d5ab3f0b8a54)
- |
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/9df263d1-3ba5-4b8d-9c74-f543c58378e9) | file:///home/timur/Downloads/Mountain.gif![image](https://github.com/timurgepard/Simphony/assets/13238473/a10af76c-bbc4-43de-bc88-3bf322491440) |
 
 
 |  LunarLander-v2 | Animation |
