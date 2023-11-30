@@ -56,7 +56,7 @@ class FourierTransform(nn.Module):
     def forward(self, x):
         B, T, E = x.shape
         x = x.reshape(B, E, T)
-        x = nn.functional.linear(x, self.tri_W[:T,:T] * self.fft.weight[:T,:T], None)
+        x = nn.functional.linear(x, self.tri_W[:T,:T].detach() * self.fft.weight[:T,:T], None)
         x = x.reshape(B, T, E)
         return  self.ffw(x)
         
