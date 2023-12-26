@@ -15,16 +15,17 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 7
+option = 9
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes
 tr_per_step = 3 # training per frame
+tr_nth_step = 1 # train policy at nth step only.
 start_test = 250
 limit_step = 2000 #max steps per episode
 num_episodes = 10000000
 start_episode = 0 #number for the identification of the current episode
-total_rewards, total_steps, test_rewards, policy_training = [], [], [], False
+total_rewards, total_steps, test_rewards, Q_learning = [], [], [], False
 
 
 hidden_dim = 256
@@ -33,13 +34,7 @@ fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions
 stall_penalty = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
 capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
 
-#TD3 has one bottleneck, when it takes minimum between predictions, and we even use element-wise minimum between 3 sub-nets.
-# each iteration it takes min -> min -> min, it can be compared with exp decaying function.
-# it is well suited for tasks where high level of balancing is involved.
-# but it is less suited for "overcoming tasks with low terminal rewards", if from 5 times agent scored -100.0, -100.0, -100.0, -100. and 30,
-# minimum prediction will be value near -100.0 making an angent less interested to take any risky actions further.
-# we take "anchored" average 0.7*min + 0.3*mean for "overcoming tasks" (BipedalWalkerHardcore), which unites advantages of TD3 and DDPG.
-critics_average = False #takes "anchored" average (or average with min baseline) between Critic subnets, default minimum.
+
 
 if option == -1:
     env = gym.make('Pendulum-v1')
@@ -84,9 +79,7 @@ elif option == 6:
 
 elif option == 7:
     limit_step = 777
-    critics_average = True
-    fade_factor = 10
-    hidden_dim = 512
+    tr_nth_step = 2
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3')
 
@@ -96,9 +89,9 @@ elif option == 8:
     env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
 
 elif option == 9:
-    limit_step = 700
+    limit_step = 300
     env = gym.make('Pusher-v4')
-    env_test = gym.make('Pusher-v4', render_mode="human")
+    env_test = gym.make('Pusher-v4')
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
@@ -106,7 +99,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, critics_average)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
 
 
 
@@ -148,12 +141,11 @@ try:
     print("loading buffer...")
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
-        algo.actor.eps = dict['eps']
         algo.actor.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
-        if len(replay_buffer)>=explore_time and not policy_training: policy_training = True
+        if len(replay_buffer)>=explore_time and not Q_learning: Q_learning = True
     print('buffer loaded, buffer length', len(replay_buffer))
 
     start_episode = len(total_steps)
@@ -167,7 +159,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_step, 100)
+    testing(env_test, limit_step, 10)
 except:
     print("problem during loading models")
 
@@ -187,9 +179,9 @@ for i in range(start_episode, num_episodes):
     if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
     if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
     #---------------------------1. processor releave --------------------------
-    if policy_training: time.sleep(0.5)
+    if Q_learning: time.sleep(0.5)
      #---------------------2. decreases dependence on random seed: ---------------
-    if not policy_training and rb_len<explore_time: algo.actor.apply(init_weights)
+    if not Q_learning and rb_len<explore_time: algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
     for steps in range(0, 2):
@@ -200,15 +192,15 @@ for i in range(start_episode, num_episodes):
 
     #------------------------------training------------------------------
 
-    if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
+    if Q_learning: _ = [algo.train(replay_buffer.sample()) for x in range(tr_between_ep)]
         
     episode_steps = 0
     for steps in range(1, limit_step+1):
         episode_steps += 1
 
-        if len(replay_buffer)>=explore_time and not policy_training:
+        if len(replay_buffer)>=explore_time and not Q_learning:
             print("started training")
-            policy_training = True
+            Q_learning = True
             _ = [algo.train(replay_buffer.sample()) for x in range(128)]
 
         action = algo.select_action(state)
@@ -230,9 +222,9 @@ for i in range(start_episode, num_episodes):
 
         #===============================================================
 
-        
+        policy_update = (steps % tr_nth_step == 0)
         replay_buffer.add(state, action, reward, next_state, done)
-        if policy_training: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
+        if Q_learning: _ = [algo.train(replay_buffer.sample(), policy_update) for x in range(tr_per_step)]
         state = next_state
         if done: break
 
@@ -248,7 +240,7 @@ for i in range(start_episode, num_episodes):
     print(f"Ep {i}: Rtrn = {total_rewards[-1]:.2f} | ep steps = {episode_steps}")
 
 
-    if policy_training:
+    if Q_learning:
 
         #--------------------saving-------------------------
         if (i%5==0): 
@@ -257,7 +249,7 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps':algo.actor.eps, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
             #print(" > done")
 
 
