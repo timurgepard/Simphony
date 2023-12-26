@@ -5,6 +5,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import copy
@@ -30,30 +31,23 @@ def ReHaE(error):
     return torch.abs(e)*torch.tanh(e)
 
 
-class Sine(nn.Module):
-    def __init__(self):
-        super().__init__()
-
+class ReSine(nn.Module):
     def forward(self, x):
-        return torch.sin(x)
+        return F.leaky_relu(torch.sin(x), 0.1)
     
 class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
         super().__init__()
 
-
         self.fft = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
-            Sine(),
-            nn.LeakyReLU(0.1),
+            ReSine(),
             nn.Linear(hidden_dim, f_out)
         )
-
 
     def forward(self, x):
         return self.fft(x)
         
-
 
 
 # Define the actor network
@@ -74,32 +68,28 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-
-        self.eps = 1.0
-        self.lim = 2.5*self.eps
         self.x_coor = 0.0
     
-    def accuracy(self):
-        if self.eps<1e-4: return False
-        if self.eps>=0.07:
-            with torch.no_grad():
-                self.eps = 0.15 * self.max_action * (math.cos(self.x_coor) + 1.0)
-                self.lim = 2.5*self.eps
-                self.x_coor += 3e-5
-        return True
+    def noise(self, x):
+        if self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        with torch.no_grad():
+            eps = 0.15 * self.max_action * (math.cos(self.x_coor) + 1.0)
+            lim = 2.5*eps
+            self.x_coor += 3e-5
+        return (eps*torch.randn_like(x)).clamp(-lim, lim)
 
 
     def forward(self, state, mean=False):
         x = self.input(state)
         x = self.max_action*self.net(x)
         if mean: return x
-        if self.accuracy(): x += (self.eps*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        x += self.noise(x)
         return x.clamp(-self.max_action, self.max_action)
 
 
 # Define the critic network
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32, critics_average=False):
+    def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
         
         self.input = nn.Sequential(
@@ -115,8 +105,6 @@ class Critic(nn.Module):
 
         self.nets = nn.ModuleList([qA, qB, qC, s2])
 
-        self.critics_average = critics_average
-        
 
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
@@ -124,20 +112,18 @@ class Critic(nn.Module):
         xs = [net(x) for net in self.nets]
         if not united: return xs
         stack = torch.stack(xs[:3], dim=-1)
-        min = torch.min(stack, dim=-1).values
-        q = min if not self.critics_average else 0.7*min + 0.3*torch.mean(stack, dim=-1)
-        return q, xs[3]
+        return torch.min(stack, dim=-1).values, xs[3]
 
 
 
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, critics_average=False):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0):
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
-        self.critic = Critic(state_dim, action_dim, hidden_dim, critics_average).to(device)
+        self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
 
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
@@ -159,10 +145,10 @@ class Symphony(object):
         return action.cpu().data.numpy().flatten()
 
 
-    def train(self, batch):
+    def train(self, batch, policy_update=True):
         state, action, reward, next_state, done = batch
         self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state)
+        return self.actor_update(state) if policy_update else None
 
 
     def critic_update(self, state, action, reward, next_state, done): 
@@ -174,7 +160,7 @@ class Symphony(object):
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  1e-3 * (1e-3*torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
+            s2_value =  3e-3 * (3e-3 * torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
 
         out = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - out[0]) + ReHE(q_value - out[1]) + ReHE(q_value - out[2]) + ReHE(s2_value - out[3])
@@ -190,7 +176,7 @@ class Symphony(object):
     def actor_update(self, state):
         action = self.actor(state, mean=True)
         q_new_policy, s2_new_policy = self.critic(state, action, united=True)
-        actor_loss = -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
+        actor_loss = 1.0 -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
@@ -231,8 +217,16 @@ class ReplayBuffer:
         idx = self.length-1
 
         #moving is life, stalling is dangerous
-        delta = np.mean(np.abs(next_state - state)).clip(1e-3, 10.0)
+        delta = np.mean(np.abs(next_state - state)).clip(1e-1, 10.0)
         reward -= self.stall_penalty*math.log10(1.0/delta)
+
+        if self.length==self.capacity:
+            self.states = torch.roll(self.states, shifts=-1, dims=0)
+            self.actions = torch.roll(self.actions, shifts=-1, dims=0)
+            self.rewards = torch.roll(self.rewards, shifts=-1, dims=0)
+            self.next_states = torch.roll(self.next_states, shifts=-1, dims=0)
+            self.dones = torch.roll(self.dones, shifts=-1, dims=0)
+
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
@@ -243,12 +237,7 @@ class ReplayBuffer:
         self.batch_size = min(max(128,self.length//500), 1024)
 
 
-        if self.length==self.capacity:
-            self.states = torch.roll(self.states, shifts=-1, dims=0)
-            self.actions = torch.roll(self.actions, shifts=-1, dims=0)
-            self.rewards = torch.roll(self.rewards, shifts=-1, dims=0)
-            self.next_states = torch.roll(self.next_states, shifts=-1, dims=0)
-            self.dones = torch.roll(self.dones, shifts=-1, dims=0)
+
 
         self.step += 1
 
