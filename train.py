@@ -15,14 +15,16 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 9
+option = 3
+noiseless = True #if no extra noise is needed during training
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes
-tr_per_step = 3 # training per frame
+tr_per_step = 3 # training per frame/step
 tr_nth_step = 1 # train policy at nth step only.
 start_test = 250
 limit_step = 2000 #max steps per episode
+limit_eval = 2000 #max steps per evaluation
 num_episodes = 10000000
 start_episode = 0 #number for the identification of the current episode
 total_rewards, total_steps, test_rewards, Q_learning = [], [], [], False
@@ -33,6 +35,8 @@ max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
 stall_penalty = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
 capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
+
+
 
 
 
@@ -60,6 +64,7 @@ elif option == 3:
 
 elif option == 4:
     limit_step = 300
+    limit_eval = 300
     tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
@@ -74,24 +79,34 @@ elif option == 5:
 
 elif option == 6:
     tr_between_ep_init = 40
+    noiseless = False
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 7:
-    limit_step = 777
-    tr_nth_step = 2
+    limit_step = 300
+    noiseless = False
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
 elif option == 8:
     limit_step = 700
+    limit_eval = 700
     env = gym.make('LunarLanderContinuous-v2')
     env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
 
 elif option == 9:
     limit_step = 300
+    limit_sim = 200
     env = gym.make('Pusher-v4')
-    env_test = gym.make('Pusher-v4')
+    env_test = gym.make('Pusher-v4', render_mode="human")
+
+elif option == 10:
+    limit_step = 300
+    tr_between_ep_init = 200
+    env = gym.make('Swimmer-v4', render_mode="human")
+    env_test = gym.make('Swimmer-v4')
+
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
@@ -99,7 +114,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, noiseless)
 
 
 
@@ -159,7 +174,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_step, 10)
+    testing(env_test, limit_eval, 10)
 except:
     print("problem during loading models")
 
@@ -219,7 +234,9 @@ for i in range(start_episode, num_episodes):
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
         elif env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
-
+        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
+        elif env.spec.id.find("BipedalWalkerHardcore-v3") != -1:
+            if reward==-100.0: reward = -30.0
         #===============================================================
 
         policy_update = (steps % tr_nth_step == 0)
@@ -254,7 +271,7 @@ for i in range(start_episode, num_episodes):
 
 
         #-----------------validation-------------------------
-        if (i>=start_test and i%50==0): testing(env_test, limit_step=2000, test_episodes=10)
+        if (i>=start_test and i%50==0): testing(env_test, limit_step=limit_eval, test_episodes=10)
               
 
 #====================================================
