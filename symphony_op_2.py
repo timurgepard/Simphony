@@ -77,8 +77,8 @@ class Actor(nn.Module):
         self.noiseless = noiseless
     
     def noise(self, x):
-        if not self.noiseless and self.x_coor>=math.pi: return 0.0
-        if self.noiseless and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if self.noiseless and self.x_coor>=math.pi: return 0.0
+        if not self.noiseless and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
         with torch.no_grad():
             eps = 0.15 * self.max_action * (math.cos(self.x_coor) + 1.0)
             lim = 2.5*eps
@@ -126,7 +126,7 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, noiseless=True):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, noiseless=False):
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, noiseless).to(device)
 
