@@ -34,16 +34,21 @@ def ReHaE(error):
 class ReSine(nn.Module):
     def forward(self, x):
         return F.leaky_relu(torch.sin(x), 0.1)
-    
+
+
+
+
 class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
         super().__init__()
+
 
         self.fft = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             ReSine(),
             nn.Linear(hidden_dim, f_out)
         )
+
 
     def forward(self, x):
         return self.fft(x)
@@ -52,7 +57,7 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, noiseless=True):
         super(Actor, self).__init__()
         self.device = device
 
@@ -69,9 +74,11 @@ class Actor(nn.Module):
 
         self.max_action = torch.mean(max_action).item()
         self.x_coor = 0.0
+        self.noiseless = noiseless
     
     def noise(self, x):
-        if self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if not self.noiseless and self.x_coor>=math.pi: return 0.0
+        if self.noiseless and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
         with torch.no_grad():
             eps = 0.15 * self.max_action * (math.cos(self.x_coor) + 1.0)
             lim = 2.5*eps
@@ -119,9 +126,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, noiseless=True):
 
-        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
+        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, noiseless).to(device)
 
         self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
@@ -235,9 +242,6 @@ class ReplayBuffer:
         self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
         self.batch_size = min(max(128,self.length//500), 1024)
-
-
-
 
         self.step += 1
 
