@@ -57,7 +57,7 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, noiseless=True):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, noiseless=False):
         super(Actor, self).__init__()
         self.device = device
 
@@ -73,14 +73,15 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
+        if not noiseless: self.max_action *= 0.15
         self.x_coor = 0.0
         self.noiseless = noiseless
     
     def noise(self, x):
         if self.noiseless and self.x_coor>=math.pi: return 0.0
-        if not self.noiseless and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if not self.noiseless and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
         with torch.no_grad():
-            eps = 0.15 * self.max_action * (math.cos(self.x_coor) + 1.0)
+            eps = self.max_action * (math.cos(self.x_coor) + 1.0)
             lim = 2.5*eps
             self.x_coor += 3e-5
         return (eps*torch.randn_like(x)).clamp(-lim, lim)
