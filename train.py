@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 3
+option = 6
 noiseless = False #if no extra noise is needed during training
 
 explore_time = 5000
@@ -80,14 +80,16 @@ elif option == 5:
 elif option == 6:
     tr_between_ep_init = 40
     noiseless = True
+    limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3', render_mode="human")
+    env_test = gym.make('BipedalWalker-v3')
 
 elif option == 7:
-    limit_step = 300
+    #tr_between_ep_init = 40
     noiseless = True
+    limit_step = int(1e+6)
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env_test = gym.make('BipedalWalkerHardcore-v3')
 
 elif option == 8:
     limit_step = 700
