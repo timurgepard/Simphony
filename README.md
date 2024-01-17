@@ -45,7 +45,7 @@ All agents can be further improved if training continues, but only episode numbe
 
 | BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/17cc3473-6cfd-44ea-a0c8-e502759f8719)  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/725371e6-9f41-43dc-8ae6-188ad01642ac)|
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/6d2ea242-4f6b-4519-9dc9-af51469b2a8b)  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/725371e6-9f41-43dc-8ae6-188ad01642ac)|
 
 
 |  Ant-v4 | Animation |
