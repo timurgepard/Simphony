@@ -37,7 +37,6 @@ class ReSine(nn.Module):
 
 
 
-
 class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
         super().__init__()
@@ -79,7 +78,7 @@ class Actor(nn.Module):
     
     def noise(self, x):
         if self.noiseless and self.x_coor>=math.pi: return 0.0
-        if not self.noiseless and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if not self.noiseless and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
         with torch.no_grad():
             eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
             lim = 2.5*eps
@@ -184,7 +183,7 @@ class Symphony(object):
     def actor_update(self, state):
         action = self.actor(state, mean=True)
         q_new_policy, s2_new_policy = self.critic(state, action, united=True)
-        actor_loss = 1.0 -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
+        actor_loss = -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
