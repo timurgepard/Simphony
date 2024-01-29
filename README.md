@@ -2,6 +2,8 @@
 
 
 Sorry for solving Mujoco and other environments, I have group of orphans who are less protected at this period, I need to support them, and my family, of course
+Sorry the latest update could have introduced bias to the gradient update, which could result in worse results in some environments, and better in others.
+corrected to unbiased version.
 
 Acknowledgements: This algorithm was created in 3 years through my mom's and sister's financial support.
 
