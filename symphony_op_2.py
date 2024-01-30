@@ -56,7 +56,7 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, noiseless=False):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
         self.device = device
 
@@ -72,13 +72,14 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-        self.scale = 1.0 if noiseless else 0.15
+        self.scale = 1.0 if burst else 0.15
         self.x_coor = 0.0
-        self.noiseless = noiseless
+        self.tr_noise = tr_noise
     
     def noise(self, x):
-        if self.noiseless and self.x_coor>=math.pi: return 0.0
-        if not self.noiseless and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
+        if self.tr_noise and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if self.x_coor>=math.pi: return 0.0
+
         with torch.no_grad():
             eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
             lim = 2.5*eps
@@ -126,9 +127,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, noiseless=False):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
 
-        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, noiseless).to(device)
+        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, burst, tr_noise).to(device)
 
         self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
