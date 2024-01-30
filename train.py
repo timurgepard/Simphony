@@ -15,8 +15,9 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 6
-noiseless = False #if no extra noise is needed during training
+option = 10
+burst = False # big amplitude random moves in the beginning
+tr_noise = True  #if extra noise is needed during training
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes
@@ -79,15 +80,15 @@ elif option == 5:
 
 elif option == 6:
     tr_between_ep_init = 40
-    noiseless = True
+    burst = True
+    tr_noise = False
     limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3')
 
 elif option == 7:
-    #tr_between_ep_init = 40
-    noiseless = True
-    limit_step = int(1e+6)
+    burst = True
+    tr_noise = False
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3')
 
@@ -104,10 +105,9 @@ elif option == 9:
     env_test = gym.make('Pusher-v4', render_mode="human")
 
 elif option == 10:
-    limit_step = 300
-    tr_between_ep_init = 200
-    env = gym.make('Swimmer-v4', render_mode="human")
-    env_test = gym.make('Swimmer-v4')
+    burst = True
+    env = gym.make('Swimmer-v4')
+    env_test = gym.make('Swimmer-v4', render_mode="human")
 
 
 state_dim = env.observation_space.shape[0]
@@ -116,7 +116,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, noiseless)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
 
 
 
@@ -223,7 +223,7 @@ for i in range(start_episode, num_episodes):
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
-
+        
         #==============counters issues with environments================
         #(scores in report are not affected)
         #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
@@ -237,8 +237,12 @@ for i in range(start_episode, num_episodes):
         elif env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore-v3") != -1:
+        elif env.spec.id.find("BipedalWalkerHardcore") != -1:
             if reward==-100.0: reward = -30.0
+
+        
+
+
         #===============================================================
 
         policy_update = (steps % tr_nth_step == 0)
