@@ -77,7 +77,7 @@ class Actor(nn.Module):
         self.tr_noise = tr_noise
     
     def noise(self, x):
-        if self.tr_noise and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if self.tr_noise and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
         if self.x_coor>=math.pi: return 0.0
 
         with torch.no_grad():
