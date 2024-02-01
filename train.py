@@ -22,7 +22,6 @@ tr_noise = True  #if extra noise is needed during training
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes
 tr_per_step = 3 # training per frame/step
-tr_nth_step = 1 # train policy at nth step only.
 start_test = 250
 limit_step = 2000 #max steps per episode
 limit_eval = 2000 #max steps per evaluation
@@ -188,10 +187,9 @@ for i in range(start_episode, num_episodes):
     state = env.reset()[0]
 
     #----------------------------pre-processing------------------------------
-
+    #---------------------0. increase ep training: -------------------------
     rb_len = len(replay_buffer)
     rb_len_treshold = 5000*tr_between_ep_init
-    #---------------------0. increase ep training: -------------------------
     tr_between_ep = tr_between_ep_init
     if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
     if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
@@ -245,9 +243,8 @@ for i in range(start_episode, num_episodes):
 
         #===============================================================
 
-        policy_update = (steps % tr_nth_step == 0)
         replay_buffer.add(state, action, reward, next_state, done)
-        if Q_learning: _ = [algo.train(replay_buffer.sample(), policy_update) for x in range(tr_per_step)]
+        if Q_learning: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
 
