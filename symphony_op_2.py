@@ -56,10 +56,8 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
+    def __init__(self, state_dim, action_dim, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
-        self.device = device
-
 
         self.input = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
@@ -129,7 +127,7 @@ class Critic(nn.Module):
 class Symphony(object):
     def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
 
-        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, burst, tr_noise).to(device)
+        self.actor = Actor(state_dim, action_dim, hidden_dim, max_action, burst, tr_noise).to(device)
 
         self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
@@ -143,6 +141,7 @@ class Symphony(object):
         self.action_dim = action_dim
         self.q_old_policy = 0.0
         self.s2_old_policy = 0.0
+        self.tr_step = 0
 
 
     def select_action(self, states):
@@ -153,10 +152,11 @@ class Symphony(object):
         return action.cpu().data.numpy().flatten()
 
 
-    def train(self, batch, policy_update=True):
+    def train(self, batch):
+        self.tr_step += 1
         state, action, reward, next_state, done = batch
         self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state) if policy_update else None
+        return self.actor_update(state) if (self.tr_step % 1==0) else None
 
 
     def critic_update(self, state, action, reward, next_state, done): 
@@ -186,15 +186,15 @@ class Symphony(object):
         q_new_policy, s2_new_policy = self.critic(state, action, united=True)
         actor_loss = -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
-
         with torch.no_grad():
             self.q_old_policy = q_new_policy.mean().detach()
             self.s2_old_policy = s2_new_policy.mean().detach()
 
-        return self.q_old_policy 
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+
+        return actor_loss
 
 
 
