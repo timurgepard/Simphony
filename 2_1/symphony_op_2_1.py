@@ -156,7 +156,7 @@ class Symphony(object):
         self.tr_step += 1
         state, action, reward, next_state, done = batch
         self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state) if (self.tr_step % 3==0) else None
+        return self.actor_update(state, next_state) if (self.tr_step % 3==0) else None
 
 
     def critic_update(self, state, action, reward, next_state, done): 
