@@ -31,8 +31,9 @@ ver 2.1 includes:
 
 10. next_state utilization for Actor training (Simplified model-free Forward Looking Actor)
 Actor's update has 2 objectives:
-a) to increase average Q value (via delta with prev Q) through improving actions at the current state, but 
-b) to increase average next Q value (via delta with current Q) through improving next actions at the next state.
+
+10.1 to increase average Q value (via delta with prev Q) through improving actions at the current state. 
+10.2 to increase average next Q value (via delta with current Q) through improving next actions at the next state.
 
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
