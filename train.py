@@ -177,9 +177,6 @@ try:
         if len(replay_buffer)>=explore_time and not Q_learning: Q_learning = True
     print('buffer loaded, buffer length', len(replay_buffer))
 
-    print(replay_buffer.min_values)
-    print(replay_buffer.max_values)
-
     start_episode = len(total_steps)
 
 except:
