@@ -134,8 +134,7 @@ algo = Symphony(replay_buffer, state_dim, action_dim, hidden_dim, device, max_ac
 def init_weights(m):
     if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
 
-def argmax(iterable):
-    return max(enumerate(iterable), key=lambda x: x[1])[0]
+
 
 #testing model
 def testing(env, limit_step, test_episodes):
