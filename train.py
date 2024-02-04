@@ -6,7 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony_op_2 import Symphony, ReplayBuffer
+from symphony_op_2_1 import Symphony, ReplayBuffer
 import math
 
 
@@ -15,12 +15,13 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 10
+option = 8
 burst = False # big amplitude random moves in the beginning
 tr_noise = True  #if extra noise is needed during training
 
 explore_time = 5000
 tr_between_ep_init = 15 # training between episodes
+tr_between_ep_const = False
 tr_per_step = 3 # training per frame/step
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -83,19 +84,22 @@ elif option == 6:
     tr_noise = False
     limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3')
+    env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 7:
     burst = True
     tr_noise = False
+    limit_step = 70
+    tr_between_ep_init = 0
+    stall_penalty = 0.0
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3')
+    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
 elif option == 8:
     limit_step = 700
     limit_eval = 700
     env = gym.make('LunarLanderContinuous-v2')
-    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
+    env_test = gym.make('LunarLanderContinuous-v2')
 
 elif option == 9:
     limit_step = 300
@@ -108,6 +112,13 @@ elif option == 10:
     env = gym.make('Swimmer-v4')
     env_test = gym.make('Swimmer-v4', render_mode="human")
 
+elif option == 11:
+    burst = True
+    limit_step = 300
+    limit_eval = 200
+    env = gym.make('HandManipulateBlock-v1')
+    env_test = gym.make('HandManipulateBlock-v1', render_mode="human")
+
 
 state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
@@ -115,7 +126,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
+algo = Symphony(replay_buffer, state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
 
 
 
@@ -123,6 +134,8 @@ algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, burst, tr
 def init_weights(m):
     if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
 
+def argmax(iterable):
+    return max(enumerate(iterable), key=lambda x: x[1])[0]
 
 #testing model
 def testing(env, limit_step, test_episodes):
@@ -161,8 +174,12 @@ try:
         replay_buffer = dict['buffer']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
+        average_steps = dict['average_steps']
         if len(replay_buffer)>=explore_time and not Q_learning: Q_learning = True
     print('buffer loaded, buffer length', len(replay_buffer))
+
+    print(replay_buffer.min_values)
+    print(replay_buffer.max_values)
 
     start_episode = len(total_steps)
 
@@ -174,6 +191,7 @@ try:
     algo.actor.load_state_dict(torch.load('actor_model.pt'))
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
+    algo.replay_buffer = replay_buffer
     print('models loaded')
     testing(env_test, limit_eval, 10)
 except:
@@ -183,6 +201,7 @@ except:
 
 
 for i in range(start_episode, num_episodes):
+    
     rewards = []
     state = env.reset()[0]
 
@@ -191,19 +210,21 @@ for i in range(start_episode, num_episodes):
     rb_len = len(replay_buffer)
     rb_len_treshold = 5000*tr_between_ep_init
     tr_between_ep = tr_between_ep_init
-    if tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
-    if tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
+    if not tr_between_ep_const and tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
+    if not tr_between_ep_const and tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
     #---------------------------1. processor releave --------------------------
     if Q_learning: time.sleep(0.5)
-     #---------------------2. decreases dependence on random seed: ---------------
-    if not Q_learning and rb_len<explore_time: algo.actor.apply(init_weights)
+    #---------------------2. decreases dependence on random seed: ---------------
+    if not Q_learning and rb_len<explore_time:
+        algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
     for steps in range(0, 2):
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         state = next_state
-
+    
+    
 
     #------------------------------training------------------------------
 
@@ -216,6 +237,7 @@ for i in range(start_episode, num_episodes):
         if len(replay_buffer)>=explore_time and not Q_learning:
             print("started training")
             Q_learning = True
+            replay_buffer.find_min_max()
             _ = [algo.train(replay_buffer.sample()) for x in range(128)]
 
         action = algo.select_action(state)
@@ -235,12 +257,10 @@ for i in range(start_episode, num_episodes):
         elif env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore") != -1:
-            if reward==-100.0: reward = -30.0
-
         
-
-
+        elif env.spec.id.find("BipedalWalkerHardcore") != -1:
+            if reward==-100.0: reward = -25.0
+            
         #===============================================================
 
         replay_buffer.add(state, action, reward, next_state, done)
@@ -254,8 +274,7 @@ for i in range(start_episode, num_episodes):
 
     total_steps.append(episode_steps)
     average_steps = np.mean(total_steps[-100:])
-            
-    
+
 
     print(f"Ep {i}: Rtrn = {total_rewards[-1]:.2f} | ep steps = {episode_steps}")
 
@@ -269,7 +288,7 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
 
 
