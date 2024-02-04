@@ -99,7 +99,7 @@ elif option == 8:
     limit_step = 700
     limit_eval = 700
     env = gym.make('LunarLanderContinuous-v2')
-    env_test = gym.make('LunarLanderContinuous-v2')
+    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
 
 elif option == 9:
     limit_step = 300
@@ -112,12 +112,6 @@ elif option == 10:
     env = gym.make('Swimmer-v4')
     env_test = gym.make('Swimmer-v4', render_mode="human")
 
-elif option == 11:
-    burst = True
-    limit_step = 300
-    limit_eval = 200
-    env = gym.make('HandManipulateBlock-v1')
-    env_test = gym.make('HandManipulateBlock-v1', render_mode="human")
 
 
 state_dim = env.observation_space.shape[0]
