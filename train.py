@@ -99,7 +99,7 @@ elif option == 8:
 
 elif option == 9:
     limit_step = 300
-    limit_sim = 200
+    limit_eval = 200
     env = gym.make('Pusher-v4')
     env_test = gym.make('Pusher-v4', render_mode="human")
 
