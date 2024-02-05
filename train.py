@@ -6,7 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony_op_2_1 import Symphony, ReplayBuffer
+from symphony_op_2 import Symphony, ReplayBuffer
 import math
 
 
@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 8
+option = 6
 burst = False # big amplitude random moves in the beginning
 tr_noise = True  #if extra noise is needed during training
 
@@ -84,7 +84,7 @@ elif option == 6:
     tr_noise = False
     limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3', render_mode="human")
+    env_test = gym.make('BipedalWalker-v3')
 
 elif option == 7:
     burst = True
@@ -120,7 +120,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(replay_buffer, state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
 
 
 
@@ -189,7 +189,6 @@ except:
 
 #-------------------------------------------------------------------------------------
 
-
 for i in range(start_episode, num_episodes):
     
     rewards = []
@@ -227,7 +226,6 @@ for i in range(start_episode, num_episodes):
         if len(replay_buffer)>=explore_time and not Q_learning:
             print("started training")
             Q_learning = True
-            replay_buffer.find_min_max()
             _ = [algo.train(replay_buffer.sample()) for x in range(128)]
 
         action = algo.select_action(state)
@@ -247,7 +245,6 @@ for i in range(start_episode, num_episodes):
         elif env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        
         elif env.spec.id.find("BipedalWalkerHardcore") != -1:
             if reward==-100.0: reward = -25.0
             
