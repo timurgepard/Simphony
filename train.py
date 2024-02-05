@@ -163,7 +163,7 @@ try:
     print("loading buffer...")
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
-        algo.actor.x_coor = dict['x_coor']
+        algo.actor.noise.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
@@ -247,10 +247,9 @@ for i in range(start_episode, num_episodes):
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
         elif env.spec.id.find("BipedalWalkerHardcore") != -1:
             if reward==-100.0: reward = -25.0
-            
         #===============================================================
-
-        replay_buffer.add(state, action, reward, next_state, done)
+        
+        replay_buffer.add(state, action, reward+1.0, next_state, done)
         if Q_learning: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
@@ -275,7 +274,7 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.noise.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
 
 
