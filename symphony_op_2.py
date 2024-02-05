@@ -59,7 +59,10 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
 
-        self.input = nn.Linear(state_dim, hidden_dim)
+        self.input = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim)
+        )
 
         self.net = nn.Sequential(
             FourierSeries(hidden_dim, action_dim),
@@ -95,7 +98,10 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
         
-        self.input = nn.Linear(state_dim+action_dim, hidden_dim)
+        self.input = nn.Sequential(
+            nn.Linear(state_dim+action_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim)
+        )
 
         qA = FourierSeries(hidden_dim, 1)
         qB = FourierSeries(hidden_dim, 1)
@@ -119,7 +125,7 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, replay_buffer, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
 
         self.actor = Actor(state_dim, action_dim, hidden_dim, max_action, burst, tr_noise).to(device)
 
@@ -135,17 +141,11 @@ class Symphony(object):
         self.action_dim = action_dim
         self.q_old_policy = 0.0
         self.s2_old_policy = 0.0
-        self.next_q_old_policy = 0.0
-        self.next_s2_old_policy = 0.0
-        self.tr_step = 0
-
-        self.replay_buffer = replay_buffer
 
 
     def select_action(self, state):
         with torch.no_grad():
             state = torch.FloatTensor(state).reshape(-1,self.state_dim).to(self.device)
-            state = self.replay_buffer.normalize(state)
             action = self.actor(state, mean=False)
         return action.cpu().data.numpy().flatten()
 
@@ -210,20 +210,6 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.min_values = -1e2 * torch.ones(state_dim).to(device)
-        self.max_values = +1e2 * torch.ones(state_dim).to(device)
-
-    def find_min_max(self):
-        self.min_values = torch.min(self.states, dim=0).values.to(self.device)
-        self.max_values = torch.max(self.states, dim=0).values.to(self.device)
-
-        #self.min_values = torch.floor(self.min_values).to(self.device)
-        #self.max_values = torch.ceil(self.max_values).to(self.device)
-
-
-
-    def normalize(self, state):
-        return 4.0*(state - self.min_values) / (self.max_values - self.min_values) - 2.0
 
     def add(self, state, action, reward, next_state, done):
         if self.length<self.capacity:
@@ -268,15 +254,13 @@ class ReplayBuffer:
         indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
 
         return (
-            self.normalize(self.states[indices]),
+            self.states[indices],
             self.actions[indices],
             self.rewards[indices],
-            self.normalize(self.next_states[indices]),
+            self.next_states[indices],
             self.dones[indices]
         )
     
-
-
 
     def __len__(self):
         return self.length
