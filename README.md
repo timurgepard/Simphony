@@ -27,10 +27,6 @@ ver 2.0 includes:
 8. reduced objective to learn Bellman's sum of dumped reward's variance
 9. improve reward variance through immediate Advantage
 
-ver 2.1 includes:
-   
-10. State normalization instead of layer normalization
-
 
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
