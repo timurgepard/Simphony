@@ -56,7 +56,7 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
 
         self.input = nn.Sequential(
@@ -70,26 +70,15 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-        self.scale = 1.0 if burst else 0.15
-        self.x_coor = 0.0
-        self.tr_noise = tr_noise
+        self.noise = GANoise(max_action, tr_noise, burst)
+        #self.noise = OUNoise(action_dim, device)
     
-    def noise(self, x):
-        if self.tr_noise and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
-        if self.x_coor>=math.pi: return 0.0
-
-        with torch.no_grad():
-            eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
-            lim = 2.5*eps
-            self.x_coor += 3e-5
-        return (eps*torch.randn_like(x)).clamp(-lim, lim)
-
 
     def forward(self, state, mean=False):
         x = self.input(state)
         x = self.max_action*self.net(x)
         if mean: return x
-        x += self.noise(x)
+        x += self.noise.generate(x)
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -127,7 +116,7 @@ class Critic(nn.Module):
 class Symphony(object):
     def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
 
-        self.actor = Actor(state_dim, action_dim, hidden_dim, max_action, burst, tr_noise).to(device)
+        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, burst, tr_noise).to(device)
 
         self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
@@ -264,3 +253,50 @@ class ReplayBuffer:
 
     def __len__(self):
         return self.length
+    
+
+
+# NOISES with cosine decrease==============================================================
+
+class GANoise:
+    def __init__(self, max_action, tr_noise=True, burst=False):
+        self.x_coor = 0.0
+        self.tr_noise = tr_noise
+        self.scale = 1.0 if burst else 0.15
+        self.max_action = max_action
+
+    def generate(self, x):
+        if self.tr_noise and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
+        if self.x_coor>=math.pi: return 0.0
+
+        with torch.no_grad():
+            eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
+            lim = 2.5*eps
+            self.x_coor += 3e-5
+        return (eps*torch.randn_like(x)).clamp(-lim, lim)
+
+
+class OUNoise:
+    def __init__(self, action_dim, device, mu=0, theta=0.15, sigma=0.2):
+        self.action_dim = action_dim
+        self.device = device
+        self.x_coor = 0.0
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+
+        self.state = torch.ones(self.action_dim).to(self.device) * self.mu
+        self.reset()
+
+    def reset(self):
+        self.state = torch.ones(self.action_dim).to(self.device) * self.mu
+
+    def generate(self, x):
+        if self.x_coor>=math.pi: return 0.0
+        with torch.no_grad():
+            eps = (math.cos(self.x_coor) + 1.0)
+            self.x_coor += 7e-4
+            x = self.state
+            dx = self.theta * (self.mu - x) + self.sigma * torch.randn_like(x)
+            self.state = x + dx
+        return eps*self.state
