@@ -209,21 +209,25 @@ class ReplayBuffer:
         self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
+        self.raw = True
 
-        self.min_values = -1e2 * torch.ones(state_dim).to(device)
-        self.max_values = +1e2 * torch.ones(state_dim).to(device)
-
+        
     def find_min_max(self):
-        self.min_values = torch.min(self.states, dim=0).values.to(self.device)
-        self.max_values = torch.max(self.states, dim=0).values.to(self.device)
+        self.min_values = torch.min(self.states, dim=0).values
+        self.max_values = torch.max(self.states, dim=0).values
 
-        #self.min_values = torch.floor(self.min_values).to(self.device)
-        #self.max_values = torch.ceil(self.max_values).to(self.device)
+        self.min_values = torch.floor(self.min_values).reshape(1, -1).to(self.device)
+        self.max_values = torch.ceil(self.max_values).reshape(1, -1).to(self.device)
+
+        self.raw = False
 
 
 
     def normalize(self, state):
-        return 4.0*(state - self.min_values) / (self.max_values - self.min_values) - 2.0
+        if self.raw: return state
+        state = 4.0 * (state - self.min_values) / ((self.max_values - self.min_values)) - 2.0
+        state[torch.isnan(state)] = 0.0
+        return state
 
     def add(self, state, action, reward, next_state, done):
         if self.length<self.capacity:
