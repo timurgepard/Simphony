@@ -36,6 +36,19 @@ class ReSine(nn.Module):
         return F.leaky_relu(torch.sin(x), 0.1)
 
 
+class Input(nn.Module):
+    def __init__(self, f_in, hidden_dim):
+        super().__init__()
+
+
+        self.ffw = nn.Sequential(
+            nn.Linear(f_in, hidden_dim),
+            nn.LayerNorm(hidden_dim)
+        )
+
+    def forward(self, x):
+        return self.ffw(x)
+
 
 class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
@@ -59,6 +72,7 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
 
+        #self.input = Input(state_dim, hidden_dim)
         self.input = nn.Linear(state_dim, hidden_dim)
 
         self.net = nn.Sequential(
@@ -94,7 +108,8 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
-        
+
+        #self.input = Input(state_dim+action_dim, hidden_dim)
         self.input = nn.Linear(state_dim+action_dim, hidden_dim)
 
         qA = FourierSeries(hidden_dim, 1)
@@ -135,8 +150,6 @@ class Symphony(object):
         self.action_dim = action_dim
         self.q_old_policy = 0.0
         self.s2_old_policy = 0.0
-        self.next_q_old_policy = 0.0
-        self.next_s2_old_policy = 0.0
         self.tr_step = 0
 
         self.replay_buffer = replay_buffer
@@ -203,15 +216,16 @@ class ReplayBuffer:
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
         self.stall_penalty = stall_penalty
+        self.raw = True
 
         self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
         self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
-        self.raw = True
 
-        
+
+
     def find_min_max(self):
         self.min_values = torch.min(self.states, dim=0).values
         self.max_values = torch.max(self.states, dim=0).values
@@ -222,10 +236,9 @@ class ReplayBuffer:
         self.raw = False
 
 
-
     def normalize(self, state):
         if self.raw: return state
-        state = 4.0 * (state - self.min_values) / ((self.max_values - self.min_values)) - 2.0
+        state = 2.0 * (state - self.min_values) / ((self.max_values - self.min_values)) - 1.0
         state[torch.isnan(state)] = 0.0
         return state
 
@@ -279,8 +292,6 @@ class ReplayBuffer:
             self.dones[indices]
         )
     
-
-
 
     def __len__(self):
         return self.length
