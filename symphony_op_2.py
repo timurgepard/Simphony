@@ -132,10 +132,10 @@ class Symphony(object):
         self.s2_old_policy = 0.0
 
 
-    def select_action(self, state):
+    def select_action(self, state, mean=False):
         with torch.no_grad():
             state = torch.FloatTensor(state).reshape(-1,self.state_dim).to(self.device)
-            action = self.actor(state, mean=False)
+            action = self.actor(state, mean=mean)
         return action.cpu().data.numpy().flatten()
 
 
