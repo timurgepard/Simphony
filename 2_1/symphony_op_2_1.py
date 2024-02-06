@@ -155,11 +155,11 @@ class Symphony(object):
         self.replay_buffer = replay_buffer
 
 
-    def select_action(self, state):
+    def select_action(self, state, mean=False):
         with torch.no_grad():
             state = torch.FloatTensor(state).reshape(-1,self.state_dim).to(self.device)
             state = self.replay_buffer.normalize(state)
-            action = self.actor(state, mean=False)
+            action = self.actor(state, mean=mean)
         return action.cpu().data.numpy().flatten()
 
 
