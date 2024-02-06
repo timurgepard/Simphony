@@ -141,7 +141,7 @@ def testing(env, limit_step, test_episodes):
         rewards = []
 
         for steps in range(1,limit_step+1):
-            action = algo.select_action(state)
+            action = algo.select_action(state, mean=True)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
             state = next_state
