@@ -27,10 +27,6 @@ ver 2.0 includes:
 8. reduced objective to learn Bellman's sum of dumped reward's variance
 9. improve reward variance through immediate Advantage
 
-ver 3.0 includes:
-
-10. Next State utilization for Actor's update (ideas from FORK (though model-free) and A2C)
-11. Finding Normalization parameters after exploration instead of Layer Normalization.
 
 
    P.S.: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
