@@ -10,6 +10,7 @@ import torch.optim as optim
 import numpy as np
 import copy
 import math
+import random
 
 
 
@@ -36,19 +37,6 @@ class ReSine(nn.Module):
         return F.leaky_relu(torch.sin(x), 0.1)
 
 
-class Input(nn.Module):
-    def __init__(self, f_in, hidden_dim):
-        super().__init__()
-
-
-        self.ffw = nn.Sequential(
-            nn.Linear(f_in, hidden_dim),
-            nn.LayerNorm(hidden_dim)
-        )
-
-    def forward(self, x):
-        return self.ffw(x)
-
 
 class FourierSeries(nn.Module):
     def __init__(self, hidden_dim, f_out):
@@ -69,10 +57,9 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0, burst=False, tr_noise=True):
         super(Actor, self).__init__()
 
-        #self.input = Input(state_dim, hidden_dim)
         self.input = nn.Linear(state_dim, hidden_dim)
 
         self.net = nn.Sequential(
@@ -81,26 +68,15 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-        self.scale = 1.0 if burst else 0.15
-        self.x_coor = 0.0
-        self.tr_noise = tr_noise
+        self.noise = GANoise(max_action, burst, tr_noise)
+        #self.noise = OUNoise(action_dim, device)
     
-    def noise(self, x):
-        if self.tr_noise and self.x_coor>=2.498: return (0.03*torch.randn_like(x)).clamp(-0.075, 0.075)
-        if self.x_coor>=math.pi: return 0.0
-
-        with torch.no_grad():
-            eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
-            lim = 2.5*eps
-            self.x_coor += 3e-5
-        return (eps*torch.randn_like(x)).clamp(-lim, lim)
-
 
     def forward(self, state, mean=False):
         x = self.input(state)
         x = self.max_action*self.net(x)
         if mean: return x
-        x += self.noise(x)
+        x += self.noise.generate(x)
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -108,8 +84,7 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
-
-        #self.input = Input(state_dim+action_dim, hidden_dim)
+        
         self.input = nn.Linear(state_dim+action_dim, hidden_dim)
 
         qA = FourierSeries(hidden_dim, 1)
@@ -126,17 +101,17 @@ class Critic(nn.Module):
         x = self.input(x)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        stack = torch.stack(xs[:3], dim=-1)
-        return torch.min(stack, dim=-1).values, xs[3]
+        qmin = torch.min(torch.stack(xs[:3], dim=-1), dim=-1).values
+        return qmin, xs[3]
 
 
 
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, replay_buffer, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, burst=False, tr_noise=True):
 
-        self.actor = Actor(state_dim, action_dim, hidden_dim, max_action, burst, tr_noise).to(device)
+        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action, burst, tr_noise).to(device)
 
         self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
         self.critic_target = copy.deepcopy(self.critic)
@@ -152,21 +127,20 @@ class Symphony(object):
         self.s2_old_policy = 0.0
         self.tr_step = 0
 
-        self.replay_buffer = replay_buffer
 
-
-    def select_action(self, state, mean=False):
+    def select_action(self, state, replay_buffer=None, mean=False):
         with torch.no_grad():
             state = torch.FloatTensor(state).reshape(-1,self.state_dim).to(self.device)
-            state = self.replay_buffer.normalize(state)
+            if replay_buffer: state = replay_buffer.normalize(state)
             action = self.actor(state, mean=mean)
         return action.cpu().data.numpy().flatten()
 
 
     def train(self, batch):
+        self.tr_step += 1
         state, action, reward, next_state, done = batch
         self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state)
+        return self.actor_update(state, next_state)
 
 
     def critic_update(self, state, action, reward, next_state, done): 
@@ -177,8 +151,10 @@ class Symphony(object):
 
             next_action = self.actor(next_state, mean=True)
             q_next_target, s2_next_target = self.critic_target(next_state, next_action, united=True)
-            q_value = reward +  (1-done) * 0.99 * q_next_target
-            s2_value =  3e-3 * (3e-3 * torch.var(reward) +  (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
+            q_value = reward + (1-done) * 0.99 * q_next_target
+            s2_value =  3e-3 * (3e-3 * torch.var(reward) + (1-done) * 0.99 * s2_next_target) #reduced objective to learn Bellman's sum of dumped variance
+            self.next_q_old_policy, self.next_s2_old_policy = self.critic(next_state, next_action, united=True)
+
 
         out = self.critic(state, action, united=False)
         critic_loss = ReHE(q_value - out[0]) + ReHE(q_value - out[1]) + ReHE(q_value - out[2]) + ReHE(s2_value - out[3])
@@ -189,19 +165,24 @@ class Symphony(object):
 
         
 
-    def actor_update(self, state):
+    def actor_update(self, state, next_state):
 
         action = self.actor(state, mean=True)
         q_new_policy, s2_new_policy = self.critic(state, action, united=True)
         actor_loss = -ReHaE(q_new_policy - self.q_old_policy) -ReHaE(s2_new_policy - self.s2_old_policy)
+        
+        next_action = self.actor(next_state, mean=True)
+        next_q_new_policy, next_s2_new_policy = self.critic(next_state, next_action, united=True)
+        actor_loss += -ReHaE(next_q_new_policy - self.next_q_old_policy.mean().detach()) -ReHaE(next_s2_new_policy - self.next_s2_old_policy.mean().detach())
+        
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
 
         with torch.no_grad():
             self.q_old_policy = q_new_policy.mean().detach()
             self.s2_old_policy = s2_new_policy.mean().detach()
 
-        self.actor_optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor_optimizer.step()
 
         return actor_loss
 
@@ -216,7 +197,6 @@ class ReplayBuffer:
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
         self.stall_penalty = stall_penalty
-        self.raw = True
 
         self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
@@ -224,23 +204,32 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
+        self.raw = True
 
 
     def find_min_max(self):
         self.min_values = torch.min(self.states, dim=0).values
         self.max_values = torch.max(self.states, dim=0).values
 
-        self.min_values = torch.floor(self.min_values).reshape(1, -1).to(self.device)
-        self.max_values = torch.ceil(self.max_values).reshape(1, -1).to(self.device)
+        self.min_values[torch.isinf(self.min_values)] = -1e+3
+        self.max_values[torch.isinf(self.max_values)] = 1e+3
+
+        self.min_values = 2.0*(torch.floor(10.0*self.min_values)/10.0).reshape(1, -1).to(self.device)
+        self.max_values = 2.0*(torch.ceil(10.0*self.max_values)/10.0).reshape(1, -1).to(self.device)
 
         self.raw = False
 
 
+
+
     def normalize(self, state):
         if self.raw: return state
-        state = 2.0 * (state - self.min_values) / ((self.max_values - self.min_values)) - 1.0
+        state[torch.isneginf(state)] = -1e+3
+        state[torch.isposinf(state)] = 1e+3
+        state = 4.0 * (state - self.min_values) / ((self.max_values - self.min_values)) - 2.0
         state[torch.isnan(state)] = 0.0
         return state
+
 
     def add(self, state, action, reward, next_state, done):
         if self.length<self.capacity:
@@ -273,7 +262,8 @@ class ReplayBuffer:
         self.step += 1
 
 
-    def generate_probs(self):
+    def generate_probs(self, uniform=False):
+        if uniform: return np.ones(self.length)/self.length
         if self.step>self.capacity: return self.probs
         def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
         weights = 1e-7*(fade(self.indexes/self.length))# weights are based solely on the history, highly squashed
@@ -281,8 +271,8 @@ class ReplayBuffer:
         return self.probs
 
 
-    def sample(self):
-        indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
+    def sample(self, uniform=False):
+        indices = self.random.choice(self.indexes, p=self.generate_probs(uniform), size=self.batch_size)
 
         return (
             self.normalize(self.states[indices]),
@@ -291,7 +281,65 @@ class ReplayBuffer:
             self.normalize(self.next_states[indices]),
             self.dones[indices]
         )
-    
+
+        return (
+            self.states[indices],
+            self.actions[indices],
+            self.rewards[indices],
+            self.next_states[indices],
+            self.dones[indices]
+        )
+
+
+
+
 
     def __len__(self):
         return self.length
+    
+
+
+# NOISES with cosine decrease==============================================================
+
+class GANoise:
+    def __init__(self, max_action, burst=False, tr_noise=True):
+        self.x_coor = 0.0
+        self.tr_noise = tr_noise
+        self.scale = 1.0 if burst else 0.15
+        self.max_action = max_action
+
+    def generate(self, x):
+        if self.tr_noise and self.x_coor>=2.133: return (0.07*torch.randn_like(x)).clamp(-0.175, 0.175)
+        if self.x_coor>=math.pi: return 0.0
+
+        with torch.no_grad():
+            eps = self.scale * self.max_action * (math.cos(self.x_coor) + 1.0)
+            lim = 2.5*eps
+            self.x_coor += 3e-5
+        return (eps*torch.randn_like(x)).clamp(-lim, lim)
+
+
+class OUNoise:
+    def __init__(self, action_dim, device, mu=0, theta=0.15, sigma=0.2):
+        self.action_dim = action_dim
+        self.device = device
+        self.x_coor = 0.0
+        self.mu = mu
+        self.theta = theta
+        self.sigma = sigma
+
+        self.state = torch.ones(self.action_dim).to(self.device) * self.mu
+        self.reset()
+
+    def reset(self):
+        self.state = torch.ones(self.action_dim).to(self.device) * self.mu
+
+    def generate(self, x):
+        if self.x_coor>=math.pi: return 0.0
+        with torch.no_grad():
+            eps = (math.cos(self.x_coor) + 1.0)
+            self.x_coor += 7e-4
+            x = self.state
+            dx = self.theta * (self.mu - x) + self.sigma * torch.randn_like(x)
+            self.state = x + dx
+        return eps*self.state
