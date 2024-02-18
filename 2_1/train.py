@@ -46,6 +46,7 @@ if option == -1:
     env_test = gym.make('Pendulum-v1', render_mode="human")
 
 elif option == 0:
+    #burst = True
     env = gym.make('MountainCarContinuous-v0')
     env_test = gym.make('MountainCarContinuous-v0', render_mode="human")
 
@@ -89,17 +90,15 @@ elif option == 6:
 elif option == 7:
     burst = True
     tr_noise = False
-    limit_step = 70
     tr_between_ep_init = 0
-    stall_penalty = 0.0
-    env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env_test = gym.make('BipedalWalkerHardcore-v3')
 
 elif option == 8:
     limit_step = 700
     limit_eval = 700
     env = gym.make('LunarLanderContinuous-v2')
-    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
+    env_test = gym.make('LunarLanderContinuous-v2')
 
 elif option == 9:
     limit_step = 300
@@ -120,7 +119,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(replay_buffer, state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, burst, tr_noise)
 
 
 
@@ -141,7 +140,8 @@ def testing(env, limit_step, test_episodes):
         rewards = []
 
         for steps in range(1,limit_step+1):
-            action = algo.select_action(state, mean=True)
+            action = algo.select_action(state, replay_buffer, mean=True)
+            #action = algo.select_action(state, mean=True)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
             state = next_state
@@ -163,7 +163,7 @@ try:
     print("loading buffer...")
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
-        algo.actor.x_coor = dict['x_coor']
+        algo.actor.noise.x_coor = dict['x_coor']
         replay_buffer = dict['buffer']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
@@ -188,7 +188,6 @@ except:
     print("problem during loading models")
 
 #-------------------------------------------------------------------------------------
-
 
 for i in range(start_episode, num_episodes):
     
@@ -225,12 +224,14 @@ for i in range(start_episode, num_episodes):
         episode_steps += 1
 
         if len(replay_buffer)>=explore_time and not Q_learning:
+            replay_buffer.find_min_max()
             print("started training")
             Q_learning = True
-            replay_buffer.find_min_max()
-            _ = [algo.train(replay_buffer.sample()) for x in range(128)]
+            _ = [algo.train(replay_buffer.sample(uniform=True)) for x in range(64)]
+            _ = [algo.train(replay_buffer.sample()) for x in range(64)]
 
-        action = algo.select_action(state)
+        action = algo.select_action(state, replay_buffer)
+        #action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
         rewards.append(reward)
         
@@ -247,13 +248,11 @@ for i in range(start_episode, num_episodes):
         elif env.spec.id.find("LunarLander") != -1:
             if reward==-100.0: reward = -50.0
         #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        
         elif env.spec.id.find("BipedalWalkerHardcore") != -1:
             if reward==-100.0: reward = -25.0
-            
         #===============================================================
-
-        replay_buffer.add(state, action, reward, next_state, done)
+        
+        replay_buffer.add(state, action, reward+1.0, next_state, done)
         if Q_learning: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
         state = next_state
         if done: break
@@ -278,7 +277,7 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
+                pickle.dump({'buffer': replay_buffer, 'x_coor':algo.actor.noise.x_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
 
 
