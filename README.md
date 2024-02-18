@@ -49,7 +49,7 @@ All agents can be further improved if training continues, but only episode numbe
 
 |  LunarLander-v2 | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/11cf2201-50e2-471b-849f-c609c794a7a7) |![LunarLander](https://github.com/timurgepard/Simphony/assets/13238473/351cae3a-95bf-46a1-be3a-f11506353444)|
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/fc8308e3-4ba3-4f73-89b0-1084ccacf1f2) |![LunarLander](https://github.com/timurgepard/Simphony/assets/13238473/351cae3a-95bf-46a1-be3a-f11506353444)|
 
 | BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
