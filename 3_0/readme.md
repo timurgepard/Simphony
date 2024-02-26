@@ -8,7 +8,7 @@ Symphony is off-policy algorithm with Replay Buffer.
    We do 1000 roll-outs of 7 init steps and 40 predicted steps (47 in total), and do On-policy training using only this data (without Replay Buffer)
 
    key obstacle: After Critic-Actor's update if we return back to train using Replay Buffer, weights will shift towards old data from the Replay Buffer.
-   We can populate Replay Buffer with this data, but it is coming from trained Model, and can be not 100% precise. Our Transformer Model should be very accurate.
+   Alternatively, we can populate Replay Buffer with this data, but it is coming from trained Model, and can be not 100% precise. Our Transformer Model should be very accurate.
 
 (I am giving 10$ RL lessons on this algorithm and in general, if you want to participate timur.ishuov@gmail.com)
 [<img src="https://github.com/timurgepard/Simphony/assets/13238473/7fcb2907-0741-4aa9-9b7c-5da7b25bc330">](https://www.youtube.com/watch?v=_lIypdb3eHs)
