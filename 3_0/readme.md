@@ -4,7 +4,7 @@ under development :
 Symphony is off-policy algorithm with Replay Buffer.
 
 1) First motivation was - after exploration/pre-training, and after each episode:
-   to do roll-outs based not by Environment step, but Dreamer step. We send to FeedForwardTransformer 7 first steps from the last episode cache to predict next state.
+   to do roll-outs based not by Environment step, but Dreamer step. We send to FeedForwardTransformer (see below) 7 first steps from the last episode cache to predict next state.
    We do 1000 roll-outs of 7 init steps and 40 predicted steps (47 in total), and do On-policy training using only this data (without Replay Buffer)
 
    key obstacle: After Critic-Actor's update if we return back to train using Replay Buffer, weights will shift towards old data from the Replay Buffer.
