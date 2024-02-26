@@ -1,5 +1,7 @@
 # Symphony 3.0 Robotics + Simplified Dreamer
 
+under development, motivation:
+
 [<img src="https://github.com/timurgepard/Simphony/assets/13238473/7fcb2907-0741-4aa9-9b7c-5da7b25bc330">](https://www.youtube.com/watch?v=_lIypdb3eHs)
 
 
