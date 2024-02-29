@@ -6,8 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony_op_3 import Symphony, ReplayBuffer
-from sdreamer import Dreamer, Dataset
+from symphony_op_3 import Symphony
 import math
 
 
@@ -16,10 +15,14 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 8
-ou_process = True
+option = 6
+burst = False # big amplitude random moves in the beginning
+tr_noise = True  #if extra noise is needed during training
+ou_process = False
 
 explore_time = 5000
+tr_between_ep_init = 15 # training between episodes
+tr_between_ep_const = False
 tr_per_step = 3 # training per frame/step
 start_test = 250
 limit_step = 2000 #max steps per episode
@@ -40,8 +43,9 @@ capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory si
 
 
 if option == -1:
+    limit_eval = 200
     env = gym.make('Pendulum-v1')
-    env_test = gym.make('Pendulum-v1', render_mode="human")
+    env_test = gym.make('Pendulum-v1')
 
 elif option == 0:
     #burst = True
@@ -79,16 +83,21 @@ elif option == 5:
 
 elif option == 6:
     tr_between_ep_init = 40
+    burst = True
+    tr_noise = False
     limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3', render_mode="human")
 
 elif option == 7:
+    burst = True
+    tr_noise = False
     tr_between_ep_init = 0
     env = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
     env_test = gym.make('BipedalWalkerHardcore-v3')
 
 elif option == 8:
+    ou_process = True
     limit_step = 700
     limit_eval = 700
     env = gym.make('LunarLanderContinuous-v2')
@@ -101,6 +110,7 @@ elif option == 9:
     env_test = gym.make('Pusher-v4', render_mode="human")
 
 elif option == 10:
+    burst = True
     env = gym.make('Swimmer-v4')
     env_test = gym.make('Swimmer-v4', render_mode="human")
 
@@ -111,10 +121,9 @@ action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
-replay_buffer = ReplayBuffer(state_dim, action_dim, capacity, device, fade_factor, stall_penalty)
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, ou_process)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, capacity, fade_factor, stall_penalty, burst, tr_noise, ou_process)
 
-dreamer = Dreamer(state_dim, action_dim, 768, device)
+
 
 #used to create random initalization in Actor -> less dependendance on the specific random seed.
 def init_weights(m):
@@ -133,7 +142,8 @@ def testing(env, limit_step, test_episodes):
         rewards = []
 
         for steps in range(1,limit_step+1):
-            action = algo.select_action(state)
+            action = algo.select_action(state, mean=True)
+            #action = algo.select_action(state, mean=True)
             next_state, reward, done, info , _ = env.step(action)
             rewards.append(reward)
             state = next_state
@@ -156,12 +166,12 @@ try:
     with open('replay_buffer', 'rb') as file:
         dict = pickle.load(file)
         algo.actor.disturbance.eps_coor = dict['eps_coor']
-        replay_buffer = dict['buffer']
+        algo.replay_buffer = dict['buffer']
         total_rewards = dict['total_rewards']
         total_steps = dict['total_steps']
         average_steps = dict['average_steps']
-        if len(replay_buffer)>=explore_time and not Q_learning: Q_learning = True
-    print('buffer loaded, buffer length', len(replay_buffer))
+        if len(algo.replay_buffer)>=explore_time and not Q_learning: Q_learning = True
+    print('buffer loaded, buffer length', len(algo.replay_buffer))
 
     start_episode = len(total_steps)
 
@@ -173,7 +183,6 @@ try:
     algo.actor.load_state_dict(torch.load('actor_model.pt'))
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
-    algo.replay_buffer = replay_buffer
     print('models loaded')
     testing(env_test, limit_eval, 10)
 except:
@@ -186,21 +195,25 @@ for i in range(start_episode, num_episodes):
     rewards = []
     state = env.reset()[0]
 
-    #----------------------------pre-processing------------------------------
-    rb_len = len(replay_buffer)
+    algo.actor.disturbance.reset()
     
-   #---------------------------1. processor releave --------------------------
-    if Q_learning:
-        _ = [algo.train(replay_buffer.sample()) for x in range(15)]
-        time.sleep(0.5)
+
+    #----------------------------pre-processing------------------------------
+    #---------------------0. increase ep training: -------------------------
+    rb_len = len(algo.replay_buffer)
+    rb_len_treshold = 5000*tr_between_ep_init
+    tr_between_ep = tr_between_ep_init
+    if not tr_between_ep_const and tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
+    if not tr_between_ep_const and tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
+    #---------------------------1. processor releave --------------------------
+    if Q_learning: time.sleep(0.5)
     #---------------------2. decreases dependence on random seed: ---------------
-    if not Q_learning and rb_len<explore_time: algo.actor.apply(init_weights)
-        
+    if not Q_learning and rb_len<explore_time:
+        algo.actor.apply(init_weights)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
     for steps in range(0, 2):
         next_state, reward, done, info, _ = env.step(action)
-        replay_buffer.store(state, action, reward, next_state, done)
         rewards.append(reward)
         state = next_state
     
@@ -208,22 +221,21 @@ for i in range(start_episode, num_episodes):
 
     #------------------------------training------------------------------
 
+    if Q_learning: _ = [algo.train() for x in range(tr_between_ep)]
         
     episode_steps = 0
     for steps in range(1, limit_step+1):
         episode_steps += 1
 
-        if len(replay_buffer)>=explore_time and not Q_learning:
+        if len(algo.replay_buffer)>=explore_time and not Q_learning:
+            algo.replay_buffer.find_min_max()
             print("started training")
             Q_learning = True
-            _ = [dreamer.train(replay_buffer.batch(uniform=True)) for x in range(256)]
-            _ = [algo.train(replay_buffer.sample(uniform=True)) for x in range(64)]
-            _ = [algo.train(replay_buffer.sample()) for x in range(64)]
+            _ = [algo.train(uniform=True) for x in range(64)]
+            _ = [algo.train() for x in range(64)]
 
         action = algo.select_action(state)
         next_state, reward, done, info, _ = env.step(action)
-        end_flag = True if (done or steps==limit_step) else False
-        dataset.store(state, action, reward, next_state, done, end_flag)
         rewards.append(reward)
         
         #==============counters issues with environments================
@@ -243,11 +255,8 @@ for i in range(start_episode, num_episodes):
             if reward==-100.0: reward = -25.0
         #===============================================================
         
-        replay_buffer.add(state, action, reward+1.0, next_state, done)
-        
-        if Q_learning: _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
-            
-            
+        algo.replay_buffer.add(state, action, reward+1.0, next_state, done)
+        if Q_learning: _ = [algo.train() for x in range(tr_per_step)]
         state = next_state
         if done: break
 
@@ -263,53 +272,14 @@ for i in range(start_episode, num_episodes):
 
 
     if Q_learning:
-        """
-        # Dreamer training and simulation
-        
-        _ = [dreamer.train(replay_buffer.batch(uniform=True)) for x in range(episode_steps)]
-        #print(loss)
-        
-        rewards = []
-        state = env.reset()[0]
-        dreamer.init(state)
-        for steps in range(1, limit_step+1):
-            next_state, reward, done, info, _ = dreamer.step(action)
-            print(steps, ': ', reward, ' done: ', done)
-            rewards.append(reward)
-
-            #==============counters issues with environments================
-            #(scores in report are not affected)
-            #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
-            if env.spec.id.find("Ant") != -1:
-                if (next_state[1]<angle_limit): done = True
-                if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
-            #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
-            elif env.spec.id.find("Humanoid-") != -1:
-                reward += next_state[0]
-            #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-            elif env.spec.id.find("LunarLander") != -1:
-                if reward==-100.0: reward = -50.0
-            #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-            elif env.spec.id.find("BipedalWalkerHardcore") != -1:
-                if reward==-100.0: reward = -25.0
-            #===============================================================
-
-            replay_buffer.add(state, action, reward+1.0, next_state, done)
-            _ = [algo.train(replay_buffer.sample()) for x in range(tr_per_step)]
-            state = next_state
-            if done: break
-        """
-
 
         #--------------------saving-------------------------
         if (i%5==0): 
             torch.save(algo.actor.state_dict(), 'actor_model.pt')
             torch.save(algo.critic.state_dict(), 'critic_model.pt')
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
-            #print("saving... len = ", len(replay_buffer))
             with open('replay_buffer', 'wb') as file:
-                pickle.dump({'buffer': replay_buffer, 'eps_coor':algo.actor.disturbance.eps_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
-            #print(" > done")
+                pickle.dump({'buffer': algo.replay_buffer, 'eps_coor':algo.actor.disturbance.eps_coor, 'total_rewards':total_rewards, 'total_steps':total_steps, 'average_steps': average_steps}, file)
 
 
         #-----------------validation-------------------------
