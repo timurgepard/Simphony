@@ -3,8 +3,7 @@
 Top scores (not average)
 | BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
-| ![image](https://github.com/timurgepard/Simphony/assets/13238473/94c17d01-3e86-4782-b7b2-13be98373d08)
-  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/725371e6-9f41-43dc-8ae6-188ad01642ac)|
+| ![image](https://github.com/timurgepard/Simphony/assets/13238473/94c17d01-3e86-4782-b7b2-13be98373d08)  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/725371e6-9f41-43dc-8ae6-188ad01642ac)|
 
 # Symphony 3.0 Robotics + Simplified Dreamer
 
