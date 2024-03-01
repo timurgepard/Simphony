@@ -1,6 +1,6 @@
 # Symphony 3.0 Robotics
 
-Top scores (not average)
+Top scores (not average, under development)
 | BipedalWalker-v3  | Animation |
 | ------------- | ------------- |
 | ![image](https://github.com/timurgepard/Simphony/assets/13238473/8abc0713-d6f2-4a8d-930e-f7158aa631aa)  | ![BipedalWalker](https://github.com/timurgepard/Simphony/assets/13238473/725371e6-9f41-43dc-8ae6-188ad01642ac)|
