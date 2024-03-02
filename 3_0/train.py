@@ -15,12 +15,12 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 6
+option = 8
 burst = False # big amplitude random moves in the beginning
 tr_noise = True  #if extra noise is needed during training
 ou_process = False
 
-explore_time = 5000
+explore_time = 5700
 tr_between_ep_init = 15 # training between episodes
 tr_between_ep_const = False
 tr_per_step = 3 # training per frame/step
@@ -40,9 +40,8 @@ capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory si
 
 
 
-
-
 if option == -1:
+    limit_step = 200
     limit_eval = 200
     env = gym.make('Pendulum-v1')
     env_test = gym.make('Pendulum-v1')
