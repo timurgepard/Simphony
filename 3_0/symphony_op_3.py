@@ -31,9 +31,9 @@ def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
-class Sine(nn.Module):
+class Tanh2(nn.Module):
     def forward(self, x):
-        return torch.sin(x)
+        return 2.0*torch.tanh(x/2)
 
 
 class ReSine(nn.Module):
@@ -66,7 +66,7 @@ class Actor(nn.Module):
 
         self.input = nn.Sequential(
             nn.Linear(state_dim, hidden_dim),
-            nn.Tanh()
+            Tanh2()
         )
 
         self.net = nn.Sequential(
@@ -88,7 +88,7 @@ class Actor(nn.Module):
         with torch.no_grad():
             x = self.input(state)
             x = self.max_action*self.net(x)
-            if not mean: x += self.disturbance.generate()
+            if not mean: x += self.disturbance.generate(x)
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -99,7 +99,7 @@ class Critic(nn.Module):
         
         self.input = nn.Sequential(
             nn.Linear(state_dim+action_dim, hidden_dim),
-            nn.Tanh()
+            Tanh2()
         )
 
         qA = RectFourier(hidden_dim, 1)
@@ -307,7 +307,8 @@ class Disturbance:
     def __init__(self, action_dim, max_action, device, burst=False, tr_noise=True, ou_process=False):
         self.eps_coor = 0.0
         self.x_coor = 0.0
-        self.scale = 1.0*max_action if burst else 0.15*max_action
+        #self.scale = 1.0*max_action if burst else 0.15*max_action
+        self.scale = 1.0*max_action
         self.tr_noise = 0.07 if tr_noise else 0.0
         self.action_dim = action_dim
         self.device = device
@@ -325,23 +326,22 @@ class Disturbance:
 
     def disturbance(self):
         with torch.no_grad():
-            self.amplitude = 1.0 + torch.sin(self.x_coor + self.phase_amp)+1.0
-            self.frequency = 1.0 + torch.sin(self.x_coor + self.phase_freq)+1.0
+            self.amplitude = 1.0 + torch.sin(self.x_coor + self.phase_amp) + 1.0
+            self.frequency = 1.0 + torch.sin(self.x_coor + self.phase_freq) + 1.0
             x = torch.sin(self.frequency*self.x_coor + self.phase_act)/self.amplitude
             self.x_coor += 0.1
         return x
 
-    def generate(self):
+    def generate(self,x):
         with torch.no_grad():
-            eps = (1.0 - math.tanh(self.eps_coor)) + self.tr_noise
-            #lim = 2.5*eps
+            eps = self.scale*(1.0 - math.tanh(self.eps_coor)) + self.tr_noise
+            lim = 2.5*eps
             self.eps_coor += 3.07e-5
-            noise = self.scale * self.disturbance()
+            noise = (eps*self.disturbance()).clamp(-lim, lim)
             #if self.ou_process:
             ou_bias = self.dist_state
-            noise -= self.scale * ou_bias
+            noise -= (eps * ou_bias).clamp(-lim, lim)
             self.dist_state = ou_bias + noise
             #else:
                 #self.dist_state = noise
-        return eps*self.dist_state
-
+        return self.dist_state
