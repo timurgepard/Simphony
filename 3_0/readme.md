@@ -17,6 +17,8 @@ Symphony is off-policy algorithm with Replay Buffer.
    key obstacle: After Critic-Actor's update if we return back to training using Replay Buffer, weights will shift towards old data from the Replay Buffer.
    Alternatively, we can populate Replay Buffer with this data, but it is coming from trained Environment Model, and can be not 100% precise. Our Transformer Model should be very accurate.
 
+   Accuracy is the hardest challenge to solve, as number of transitions can be not sufficient enough. 
+
 (I am giving 10$ RL lessons on this algorithm and in general, if you want to participate timur.ishuov@gmail.com)
 [<img src="https://github.com/timurgepard/Simphony/assets/13238473/7fcb2907-0741-4aa9-9b7c-5da7b25bc330">](https://www.youtube.com/watch?v=_lIypdb3eHs)
 
