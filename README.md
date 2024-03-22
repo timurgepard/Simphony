@@ -1,7 +1,6 @@
 # Symphony
 
 
-Sorry for solving Mujoco and other environments, I have group of orphans who are less protected at this period, I need to support them, and my family, of course. 
 The latest update (January, 2024) could have introduced bias to the policy gradient update, which could result in worse results in some environments, and better in others.
 corrected to unbiased version (29.01.2024).
 
