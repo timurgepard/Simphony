@@ -1,8 +1,6 @@
 # Symphony
 
 
-The latest update (January, 2024) could have introduced bias to the policy gradient update, which could result in worse results in some environments, and better in others.
-corrected to unbiased version (29.01.2024).
 
 Acknowledgements: This algorithm was created in 3 years through my mom's and sister's financial support.
 
