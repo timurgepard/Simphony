@@ -15,7 +15,7 @@ print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 3
+option = 2
 
 
 explore_time = 1000
@@ -51,7 +51,7 @@ elif option == 1:
 
 elif option == 2:
     env = gym.make('Walker2d-v4')
-    env_test = gym.make('Walker2d-v4', render_mode="human")
+    env_test = gym.make('Walker2d-v4')
 
 elif option == 3:
     env = gym.make('Humanoid-v4')
@@ -184,17 +184,7 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
     #---------------------1. decreases dependence on random seed: ---------------
     if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
-        
-    #-----------2. slighlty random initial configuration as in OpenAI Pendulum----
-    
-    action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 2):
-        next_state, reward, done, info, _ = env.step(action)
-        rewards.append(reward)
-        state = next_state
-    
-    
-    
+
     for steps in range(1, limit_step+1):
         episode_steps += 1
         total_steps += 1
@@ -255,4 +245,3 @@ for i in range(start_episode, num_episodes):
             with open('data', 'wb') as file:
                 pickle.dump({'buffer': algo.replay_buffer, 'x_coor':algo.actor.x_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
-
