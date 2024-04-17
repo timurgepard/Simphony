@@ -87,7 +87,7 @@ class Actor(nn.Module):
         self.eps = 1.0
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
-        self.scale = 0.3*self.max_action
+        self.scale = 0.2*self.max_action
         self.lim = 2.5*self.scale
     
     
