@@ -244,7 +244,7 @@ class ReplayBuffer:
         #alpha = 0.03*(1.0 + abs(self.rewards_sum/self.step))
         #self.alpha = 0.997*self.alpha + 0.003*alpha
         delta = np.mean(np.abs(next_state - state)).clip(self.delta_min, self.delta_max)
-        reward += self.alpha*(delta + math.log(delta))
+        reward += self.alpha*(delta + math.log10(delta))
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
