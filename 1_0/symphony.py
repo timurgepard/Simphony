@@ -77,7 +77,7 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
-        self.fft = nn.Sequential(
+        self.net = nn.Sequential(
             FourierSeries(state_dim, hidden_dim, action_dim),
             nn.Tanh()
         )
@@ -87,12 +87,12 @@ class Actor(nn.Module):
         self.eps = 1.0
         self.lim = 2.5*self.eps
         self.x_coor = 0.0
-        self.scale = 0.22*self.max_action
+        self.scale = 0.3*self.max_action
         self.lim = 2.5*self.scale
     
     
     def forward(self, state):
-        x = self.max_action*self.fft(state)
+        x = self.max_action*self.net(state)
         return x
 
     def action(self, state, mean=False):
@@ -108,16 +108,18 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
 
-        self.qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
-        self.qB = FourierSeries(state_dim+action_dim, hidden_dim, 12)
-        self.qC = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        qB = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        qC = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+
+        self.nets = nn.ModuleList([qA, qB, qC])
 
        
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        qA, qB, qC= self.qA(x), self.qB(x), self.qC(x)
-        if not united: return (qA, qB, qC)
-        stack = torch.stack([qA, qB, qC], dim=-1)
+        xs = [net(x) for net in self.nets]
+        if not united: return xs
+        stack = torch.stack(xs, dim=-1)
         return torch.min(stack, dim=-1).values
 
 
@@ -168,8 +170,8 @@ class Symphony(object):
             q_next_target = self.critic_target(next_state, next_action, united=True)
             q_value = reward +  (1-done) * 0.99 * q_next_target
 
-        qA, qB, qC = self.critic(state, action, united=False)
-        critic_loss = ReHE(q_value - qA) + ReHE(q_value - qB) + ReHE(q_value - qC)
+        qs = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
 
 
         self.critic_optimizer.zero_grad()
