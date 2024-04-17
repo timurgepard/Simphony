@@ -76,12 +76,6 @@ class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0):
         super(Actor, self).__init__()
         self.device = device
-        """
-        self.input = nn.Sequential(
-            nn.Linear(state_dim+action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim)
-        )
-        """
 
         self.fft = nn.Sequential(
             FourierSeries(state_dim, hidden_dim, action_dim),
@@ -98,7 +92,6 @@ class Actor(nn.Module):
     
     
     def forward(self, state):
-        #x = self.input(state)
         x = self.max_action*self.fft(state)
         return x
 
@@ -114,12 +107,6 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=32):
         super(Critic, self).__init__()
-        """
-        self.input = nn.Sequential(
-            nn.Linear(state_dim+action_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim)
-        )
-        """
 
         self.qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
         self.qB = FourierSeries(state_dim+action_dim, hidden_dim, 12)
@@ -128,7 +115,6 @@ class Critic(nn.Module):
        
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        #x = self.input(x)
         qA, qB, qC= self.qA(x), self.qB(x), self.qC(x)
         if not united: return (qA, qB, qC)
         stack = torch.stack([qA, qB, qC], dim=-1)
