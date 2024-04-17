@@ -137,9 +137,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, alpha=0.07):
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, alpha)
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
@@ -208,13 +208,12 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, stall_penalty=0.03):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, alpha=0.07):
         self.capacity, self.length, self.device = 512000, 0, device
         self.batch_size = min(max(128, self.length//250), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
-        self.stall_penalty = stall_penalty
 
         self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
@@ -222,7 +221,7 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.alpha = 0.07
+        self.alpha = alpha
         self.rewards_sum = 0
         self.delta_max = 1e+3
         self.delta_min = 1e-3
@@ -245,7 +244,7 @@ class ReplayBuffer:
         #alpha = 0.03*(1.0 + abs(self.rewards_sum/self.step))
         #self.alpha = 0.997*self.alpha + 0.003*alpha
         delta = np.mean(np.abs(next_state - state)).clip(self.delta_min, self.delta_max)
-        reward += 0.07*(delta + math.log(delta))
+        reward += self.alpha*(delta + math.log(delta))
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
