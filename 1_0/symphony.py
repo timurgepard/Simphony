@@ -119,8 +119,7 @@ class Critic(nn.Module):
         x = torch.cat([state, action], -1)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        stack = torch.stack(xs, dim=-1)
-        return torch.min(stack, dim=-1).values
+        return torch.min(torch.stack(xs, dim=-1), dim=-1).values
 
 
 # Define the actor-critic agent
