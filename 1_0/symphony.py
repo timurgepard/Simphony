@@ -182,7 +182,7 @@ class Symphony(object):
     def actor_update(self, state):
         action = self.actor(state)
         q_new_policy = self.critic(state, action, united=True)
-        actor_loss = -ReHaE(0.777*(q_new_policy - self.q_old_policy))
+        actor_loss = -ReHaE(q_new_policy - self.q_old_policy)
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward(retain_graph=True)
