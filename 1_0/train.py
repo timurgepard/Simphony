@@ -6,7 +6,7 @@ import numpy as np
 import gymnasium as gym
 import pickle
 import time
-from symphony_op_1 import Symphony, ReplayBuffer, log_file
+from symphony import Symphony, log_file
 import math
 
 
@@ -16,12 +16,9 @@ print(device)
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
 option = 3
-burst = False # big amplitude random moves in the beginning
-tr_noise = True  #if extra noise is needed during training
+
 
 explore_time = 1000
-tr_between_ep_init = 15 # training between episodes
-tr_between_ep_const = False
 tr_per_step = 4 # training per frame/step
 limit_step = 1000 #max steps per episode
 limit_eval = 1000 #max steps per evaluation
@@ -33,7 +30,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-stall_penalty = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
+alpha = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
 capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
 
 
@@ -53,19 +50,16 @@ elif option == 1:
     env_test = gym.make('HalfCheetah-v4', render_mode="human")
 
 elif option == 2:
-    #tr_between_ep_init = 70
     env = gym.make('Walker2d-v4')
     env_test = gym.make('Walker2d-v4', render_mode="human")
 
 elif option == 3:
-    #tr_between_ep_init = 70
     env = gym.make('Humanoid-v4')
     env_test = gym.make('Humanoid-v4')
 
 elif option == 4:
     limit_step = 300
     limit_eval = 300
-    tr_between_ep_init = 70
     env = gym.make('HumanoidStandup-v4')
     env_test = gym.make('HumanoidStandup-v4', render_mode="human")
 
@@ -75,22 +69,13 @@ elif option == 5:
     #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
     angle_limit = 0.4
     #less aggressive movements -> faster learning but less final speed
-    max_action = 0.7
 
 elif option == 6:
-    tr_between_ep_init = 40
-    burst = True
-    tr_noise = False
     limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3')
 
 elif option == 7:
-    burst = True
-    tr_noise = False
-    limit_step = 70
-    tr_between_ep_init = 0
-    stall_penalty = 0.0
     env = gym.make('BipedalWalkerHardcore-v3')
     env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
 
@@ -119,7 +104,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor, alpha)
 
 
 
@@ -194,19 +179,13 @@ for i in range(start_episode, num_episodes):
     
     rewards = []
     state = env.reset()[0]
+    episode_steps = 0
 
     #----------------------------pre-processing------------------------------
-    #---------------------0. increase ep training: -------------------------
-    rb_len = len(algo.replay_buffer)
-    rb_len_treshold = 5000*tr_between_ep_init
-    tr_between_ep = tr_between_ep_init
-    if not tr_between_ep_const and tr_between_ep_init>=100 and rb_len>=350000: tr_between_ep = rb_len//5000 # init -> 70 -> 100
-    if not tr_between_ep_const and tr_between_ep_init<100 and rb_len>=rb_len_treshold: tr_between_ep = rb_len//5000# init -> 100
-    #---------------------------1. processor releave --------------------------
-    #---------------------2. decreases dependence on random seed: ---------------
+    #---------------------1. decreases dependence on random seed: ---------------
     if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
         
-    #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
+    #-----------2. slighlty random initial configuration as in OpenAI Pendulum----
     
     action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
     for steps in range(0, 2):
@@ -216,12 +195,6 @@ for i in range(start_episode, num_episodes):
     
     
     
-
-    #------------------------------training------------------------------
-
-    #if Q_learning: _ = [algo.train() for x in range(tr_between_ep)]
-        
-    episode_steps = 0
     for steps in range(1, limit_step+1):
         episode_steps += 1
         total_steps += 1
@@ -283,8 +256,3 @@ for i in range(start_episode, num_episodes):
                 pickle.dump({'buffer': algo.replay_buffer, 'x_coor':algo.actor.x_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
 
-
-#====================================================
-# * Apart from the algo core, fade_factor, tr_between_ep and limit_steps are crucial parameters for speed of training.
-#   E.g. limit_steps = 700 instead of 2000 introduce less variance and makes BipedalWalkerHardcore's Agent less discouraged to go forward.
-#   high values in tr_between_ep can make a "stiff" agent, but sometimes it is helpful for straight posture from the beginning (Humanoid-v4).
