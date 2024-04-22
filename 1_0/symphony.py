@@ -233,6 +233,7 @@ class ReplayBuffer:
         if self.step<=1000:
             self.alpha = self.alpha_base*(1.0+self.rewards_sum/self.step)
             if delta>self.delta_max: self.delta_max = delta
+            if self.step==1000: print('alpha = ', round(self.alpha, 3))
 
         delta /= self.delta_max
         reward += self.alpha*(0.5*math.tanh(math.log(2.0*delta))+0.5)
