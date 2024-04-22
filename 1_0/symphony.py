@@ -6,6 +6,7 @@ import copy
 import math
 import random
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -80,12 +81,9 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-
-        self.eps = 1.0
-        self.lim = 2.5*self.eps
-        self.x_coor = 0.0
         self.scale = 0.2*self.max_action
         self.lim = 2.5*self.scale
+        self.eps_coor = 0.0
     
     
     def forward(self, state):
@@ -93,6 +91,9 @@ class Actor(nn.Module):
         return x
 
     def action(self, state, mean=False):
+        #eps = self.scale * (1.0-math.tanh(self.eps_coor-1.5)) + 0.07
+        #lim = 2.5*eps
+        #self.eps_coor += 3e-5
         with torch.no_grad():
             x = self.forward(state)
             if mean: return x
@@ -149,11 +150,15 @@ class Symphony(object):
         return action.cpu().data.numpy().flatten()
 
 
-    def train(self):
-        state, action, reward, next_state, done = self.replay_buffer.sample()
-        for _ in range(3):
-            self.critic_update(state, action, reward, next_state, done)
-        return self.actor_update(state)
+    def train(self, tr_per_step=1):
+        #Update-To-Data (UTD)
+        for _ in range(tr_per_step):
+            state, action, reward, next_state, done = self.replay_buffer.sample()
+            #Sample Multiple Reuse (SMR)
+            for _ in range(3):
+                self.critic_update(state, action, reward, next_state, done)
+            self.actor_update(state)
+            
 
 
     def critic_update(self, state, action, reward, next_state, done): 
@@ -187,7 +192,6 @@ class Symphony(object):
 
         with torch.no_grad(): self.q_old_policy = q_new_policy.mean().detach()
             
-        return actor_loss.item()
 
 
 
@@ -205,11 +209,10 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.alpha = alpha
+        self.alpha_base = alpha
         self.rewards_sum = 0
-        self.delta_max = 1e+3
-        self.delta_min = 1e-3
-
+        self.delta_max = 3.0
+        self.alpha = alpha
 
 
     def add(self, state, action, reward, next_state, done):
@@ -222,13 +225,18 @@ class ReplayBuffer:
         
 
         #moving is life, stalling is dangerous
-        
-        self.rewards_sum += reward
+        self.rewards_sum += abs(reward)
         self.step += 1
-        #alpha = 0.03*(1.0 + abs(self.rewards_sum/self.step))
-        #self.alpha = 0.997*self.alpha + 0.003*alpha
-        delta = np.mean(np.abs(next_state - state)).clip(self.delta_min, self.delta_max)
-        reward += self.alpha*(delta + math.log10(delta))
+        
+
+        delta = np.mean(np.abs(next_state - state)).item()
+        if self.step<=1000:
+            self.alpha = self.alpha_base*(1.0+self.rewards_sum/self.step)
+            if delta>self.delta_max: self.delta_max = delta
+
+        delta /= self.delta_max
+        reward += self.alpha*(0.5*math.tanh(math.log(2.0*delta))+0.5)
+        
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
