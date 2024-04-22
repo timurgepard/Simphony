@@ -30,7 +30,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-alpha = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
+alpha = 0.03 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
 capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
 
 
@@ -135,7 +135,7 @@ def testing(env, limit_step, test_episodes, current_step=0, save_log=False):
         episode_return.append(np.sum(rewards))
 
         validate_return = np.mean(episode_return[-100:])
-        print(f"trial {test_episode}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}, steps: {steps}")
+        print(f"trial {test_episode+1}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}, steps: {steps}")
 
     if save_log: log_file.write(str(current_step) + ": " + str(round(validate_return.item(), 2)) + "\n")
 
@@ -148,7 +148,7 @@ try:
     print("loading buffer...")
     with open('data', 'rb') as file:
         dict = pickle.load(file)
-        algo.actor.x_coor = dict['x_coor']
+        algo.actor.eps_coor = dict['x_coor']
         algo.replay_buffer = dict['buffer']
         episode_rewards_all = dict['episode_rewards_all']
         episode_steps_all = dict['episode_steps_all']
@@ -184,6 +184,8 @@ for i in range(start_episode, num_episodes):
     #----------------------------pre-processing------------------------------
     #---------------------1. decreases dependence on random seed: ---------------
     if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
+        
+        #algo.replay_buffer.update_alpha()
 
     for steps in range(1, limit_step+1):
         episode_steps += 1
@@ -194,7 +196,7 @@ for i in range(start_episode, num_episodes):
         if total_steps>=explore_time and not Q_learning:
             print("started training")
             Q_learning = True
-            _ = [algo.train() for x in range(64)]
+            algo.train(64)
 
         action = algo.select_action(state)
         next_state, reward, done, truncated, info = env.step(action)
@@ -219,7 +221,7 @@ for i in range(start_episode, num_episodes):
         """
         
         algo.replay_buffer.add(state, action, reward, next_state, done)
-        if Q_learning: _ = [algo.train() for _ in range(tr_per_step)]
+        if Q_learning: algo.train(tr_per_step)
         state = next_state
         if done: break
 
@@ -243,5 +245,5 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(algo.replay_buffer))
             with open('data', 'wb') as file:
-                pickle.dump({'buffer': algo.replay_buffer, 'x_coor':algo.actor.x_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
+                pickle.dump({'buffer': algo.replay_buffer, 'eps_coor':algo.actor.eps_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
