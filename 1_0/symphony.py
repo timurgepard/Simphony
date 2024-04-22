@@ -225,7 +225,7 @@ class ReplayBuffer:
         
 
         #moving is life, stalling is dangerous
-        self.rewards_sum += abs(reward)
+        self.rewards_sum += reward/2*math.tanh(reward/2)
         self.step += 1
         
 
