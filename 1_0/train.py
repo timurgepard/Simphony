@@ -30,7 +30,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-lambda_r = 0.03 # base alpha for moving is life, stalling is dangerous
+lambda_r = 0.04 # base alpha for moving is life, stalling is dangerous
 
 
 
