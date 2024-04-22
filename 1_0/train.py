@@ -30,7 +30,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-alpha = 0.07 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
+alpha = 0.06 # moving is life, stalling is dangerous, optimal value = 0.07, higher values can create extra vibrations.
 capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
 
 
