@@ -14,7 +14,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
 #r1, r2, r3 = 1216815315,  386391682,  1679869492
 #r1, r2, r3 = 3743773989,  91389447,  1496950741
-#r1, r2, r3 = 341224519, 2966684000, 2913035160
+#r1, r2, r3 = 3722698433, 181356730, 3691788942
 print(r1, ", ", r2, ", ", r3)
 torch.manual_seed(r1)
 np.random.seed(r2)
@@ -71,7 +71,7 @@ class FourierSeries(nn.Module):
 
 # Define the actor network
 class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, device, hidden_dim=32, max_action=1.0):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=256, max_action=1.0):
         super(Actor, self).__init__()
         self.device = device
 
@@ -91,9 +91,6 @@ class Actor(nn.Module):
         return x
 
     def action(self, state, mean=False):
-        #eps = self.scale * (1.0-math.tanh(self.eps_coor-1.5)) + 0.07
-        #lim = 2.5*eps
-        #self.eps_coor += 3e-5
         with torch.no_grad():
             x = self.forward(state)
             if mean: return x
@@ -103,7 +100,7 @@ class Actor(nn.Module):
 
         
 class Critic(nn.Module):
-    def __init__(self, state_dim, action_dim, hidden_dim=32):
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Critic, self).__init__()
 
         qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
@@ -117,14 +114,15 @@ class Critic(nn.Module):
         x = torch.cat([state, action], -1)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        return torch.min(torch.stack(xs, dim=-1), dim=-1).values
+        xs = torch.min(torch.stack(xs, dim=-1), dim=-1).values
+        return torch.mean(xs, dim=-1, keepdim=True)
 
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, alpha=0.07):
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, alpha)
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
@@ -196,9 +194,9 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, alpha=0.07):
         self.capacity, self.length, self.device = 512000, 0, device
-        self.batch_size = min(max(128, self.length//250), 2048) #in order for sample to describe population
+        self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
@@ -209,10 +207,10 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.lambda_r = lambda_r
+        self.alpha_base = alpha
         self.rewards_sum = 0
         self.delta_max = 3.0
-        self.alpha = lambda_r
+        self.alpha = alpha
 
 
     def add(self, state, action, reward, next_state, done):
@@ -231,7 +229,7 @@ class ReplayBuffer:
 
         delta = np.mean(np.abs(next_state - state)).item()
         if self.step<=1000:
-            self.alpha = self.lambda_r*(1.0+self.rewards_sum/self.step)
+            self.alpha = self.alpha_base*(1.0+self.rewards_sum/self.step)
             if delta>self.delta_max: self.delta_max = delta
             if self.step==1000: print('alpha = ', round(self.alpha, 3))
 
@@ -245,7 +243,7 @@ class ReplayBuffer:
         self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
         self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
-        self.batch_size = min(max(128, self.length//250), 2048)
+        self.batch_size = min(max(128, self.length//500), 1024)
 
 
         if self.length==self.capacity:
