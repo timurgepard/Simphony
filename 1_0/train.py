@@ -22,7 +22,7 @@ explore_time = 1000
 tr_per_step = 4 # training per frame/step
 limit_step = 1000 #max steps per episode
 limit_eval = 1000 #max steps per evaluation
-num_episodes = 10000000
+num_episodes = 250
 start_episode = 0 #number for the identification of the current episode
 episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], False
 
@@ -31,15 +31,13 @@ hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
 lambda_r = 0.03 # base alpha for moving is life, stalling is dangerous
-capacity = "full" # short = 100k, medium=300k, full=500k replay buffer memory size.
-
 
 
 
 
 if option == -1:
     env = gym.make('Pendulum-v1')
-    env_test = gym.make('Pendulum-v1', render_mode="human")
+    env_test = gym.make('Pendulum-v1')
 
 elif option == 0:
     env = gym.make('MountainCarContinuous-v0')
@@ -223,7 +221,7 @@ for i in range(start_episode, num_episodes):
         algo.replay_buffer.add(state, action, reward, next_state, done)
         if Q_learning: algo.train(tr_per_step)
         state = next_state
-        if done: break
+        if done or (not Q_learning and steps>=100): break
 
 
     episode_rewards_all.append(np.sum(rewards))
