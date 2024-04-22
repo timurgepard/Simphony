@@ -122,9 +122,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, alpha=0.07):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07):
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, alpha)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r)
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
@@ -196,7 +196,7 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, alpha=0.07):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
         self.capacity, self.length, self.device = 512000, 0, device
         self.batch_size = min(max(128, self.length//250), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
@@ -209,10 +209,10 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.alpha_base = alpha
+        self.lambda_r = lambda_r
         self.rewards_sum = 0
         self.delta_max = 3.0
-        self.alpha = alpha
+        self.alpha = lambda_r
 
 
     def add(self, state, action, reward, next_state, done):
@@ -231,7 +231,7 @@ class ReplayBuffer:
 
         delta = np.mean(np.abs(next_state - state)).item()
         if self.step<=1000:
-            self.alpha = self.alpha_base*(1.0+self.rewards_sum/self.step)
+            self.alpha = self.lambda_r*(1.0+self.rewards_sum/self.step)
             if delta>self.delta_max: self.delta_max = delta
             if self.step==1000: print('alpha = ', round(self.alpha, 3))
 
