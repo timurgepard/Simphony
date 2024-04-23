@@ -5,6 +5,7 @@ import numpy as np
 import copy
 import math
 import random
+import torch.nn.functional as F
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -14,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
 #r1, r2, r3 = 1216815315,  386391682,  1679869492
 #r1, r2, r3 = 3743773989,  91389447,  1496950741
-#r1, r2, r3 = 3722698433, 181356730, 3691788942
+#r1, r2, r3 = 4192644313, 3075238889, 2575656344
 print(r1, ", ", r2, ", ", r3)
 torch.manual_seed(r1)
 np.random.seed(r2)
@@ -41,9 +42,6 @@ def ReHaE(error):
     return torch.abs(e)*torch.tanh(e)
 
 class Sine(nn.Module):
-    def __init__(self):
-        super().__init__()
-
     def forward(self, x):
         return torch.sin(x)
     
@@ -120,9 +118,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, alpha=0.07):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07):
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, alpha)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r)
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
@@ -194,7 +192,7 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, alpha=0.07):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
         self.capacity, self.length, self.device = 512000, 0, device
         self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
         self.random = np.random.default_rng()
@@ -207,10 +205,10 @@ class ReplayBuffer:
         self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
         self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
 
-        self.alpha_base = alpha
+        self.alpha_base = lambda_r
         self.rewards_sum = 0
         self.delta_max = 3.0
-        self.alpha = alpha
+        self.alpha = lambda_r
 
 
     def add(self, state, action, reward, next_state, done):
@@ -225,11 +223,13 @@ class ReplayBuffer:
         #moving is life, stalling is dangerous
         self.rewards_sum += reward/2*math.tanh(reward/2)
         self.step += 1
+        alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
+        self.alpha = 0.9999*self.alpha + 0.0001*alpha
         
 
         delta = np.mean(np.abs(next_state - state)).item()
         if self.step<=1000:
-            self.alpha = self.alpha_base*(1.0+self.rewards_sum/self.step)
+            self.alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
             if delta>self.delta_max: self.delta_max = delta
             if self.step==1000: print('alpha = ', round(self.alpha, 3))
 
