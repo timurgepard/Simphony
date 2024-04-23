@@ -1,247 +1,280 @@
-import logging
-logging.getLogger().setLevel(logging.CRITICAL)
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-import gymnasium as gym
-import pickle
-import time
-from symphony import Symphony, log_file
+import copy
 import math
+import random
+import torch.nn.functional as F
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(device)
-
-#global parameters
-# environment type. Different Environments have some details that you need to bear in mind.
-option = 2
 
 
-explore_time = 1000
-tr_per_step = 4 # training per frame/step
-limit_step = 1000 #max steps per episode
-limit_eval = 1000 #max steps per evaluation
-num_episodes = 250
-start_episode = 0 #number for the identification of the current episode
-episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], False
+# random seeds
+r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
+#r1, r2, r3 = 1216815315,  386391682,  1679869492
+#r1, r2, r3 = 3743773989,  91389447,  1496950741
+#r1, r2, r3 = 4192644313, 3075238889, 2575656344
+print(r1, ", ", r2, ", ", r3)
+torch.manual_seed(r1)
+np.random.seed(r2)
+random.seed(r3)
 
+class LogFile(object):
+    def __init__(self, log_name):
+        self.log_name= log_name
+    def write(self, text):
+        with open(self.log_name, 'a+') as file:
+            file.write(text)
 
-hidden_dim = 384
-max_action = 1.0
-fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-lambda_r = 0.04 # base alpha for moving is life, stalling is dangerous
+log_name = "history_" + str(r1) + "_" + str(r2) + "_" + str(r3) + ".log"
+log_file = LogFile(log_name)
 
+#Rectified Hubber Error Loss Function
+def ReHE(error):
+    ae = torch.abs(error).mean()
+    return ae*torch.tanh(ae)
 
+#Rectified Hubber Assymetric Error Loss Function
+def ReHaE(error):
+    e = error.mean()
+    return torch.abs(e)*torch.tanh(e)
 
-
-if option == -1:
-    env = gym.make('Pendulum-v1')
-    env_test = gym.make('Pendulum-v1')
-
-elif option == 0:
-    env = gym.make('MountainCarContinuous-v0')
-    env_test = gym.make('MountainCarContinuous-v0', render_mode="human")
-
-elif option == 1:
-    env = gym.make('HalfCheetah-v4')
-    env_test = gym.make('HalfCheetah-v4', render_mode="human")
-
-elif option == 2:
-    env = gym.make('Walker2d-v4')
-    env_test = gym.make('Walker2d-v4')
-
-elif option == 3:
-    env = gym.make('Humanoid-v4')
-    env_test = gym.make('Humanoid-v4')
-
-elif option == 4:
-    limit_step = 300
-    limit_eval = 300
-    env = gym.make('HumanoidStandup-v4')
-    env_test = gym.make('HumanoidStandup-v4', render_mode="human")
-
-elif option == 5:
-    env = gym.make('Ant-v4')
-    env_test = gym.make('Ant-v4', render_mode="human")
-    #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked, only z coordinate), we can check to save some time:
-    angle_limit = 0.4
-    #less aggressive movements -> faster learning but less final speed
-
-elif option == 6:
-    limit_step = int(1e+6)
-    env = gym.make('BipedalWalker-v3')
-    env_test = gym.make('BipedalWalker-v3')
-
-elif option == 7:
-    env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
-
-elif option == 8:
-    limit_step = 700
-    limit_eval = 700
-    env = gym.make('LunarLanderContinuous-v2')
-    env_test = gym.make('LunarLanderContinuous-v2', render_mode="human")
-
-elif option == 9:
-    limit_step = 300
-    limit_eval = 200
-    env = gym.make('Pusher-v4')
-    env_test = gym.make('Pusher-v4', render_mode="human")
-
-elif option == 10:
-    burst = True
-    env = gym.make('Swimmer-v4')
-    env_test = gym.make('Swimmer-v4', render_mode="human")
-
-
-
-state_dim = env.observation_space.shape[0]
-action_dim= env.action_space.shape[0]
-
-print('action space high', env.action_space.high)
-max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
-
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor, lambda_r)
-
-
-
-#used to create random initalization in Actor -> less dependendance on the specific random seed.
-def init_weights(m):
-    if isinstance(m, nn.Linear): torch.nn.init.xavier_uniform_(m.weight)
-
-
-
-#testing model
-def testing(env, limit_step, test_episodes, current_step=0, save_log=False):
-    if test_episodes<1: return
-    print("Validation... ", test_episodes, " epsodes")
-    episode_return = []
-
-    for test_episode in range(test_episodes):
-        state = env.reset()[0]
-        rewards = []
-
-        for steps in range(1,limit_step+1):
-            action = algo.select_action(state, mean=True)
-            next_state, reward, done, truncated, info = env.step(action)
-            rewards.append(reward)
-            state = next_state
-
-            if done or truncated: break
-
-        episode_return.append(np.sum(rewards))
-
-        validate_return = np.mean(episode_return[-100:])
-        print(f"trial {test_episode+1}:, Rtrn = {episode_return[test_episode]:.2f}, Average 100 = {validate_return:.2f}, steps: {steps}")
-
-    if save_log: log_file.write(str(current_step) + ": " + str(round(validate_return.item(), 2)) + "\n")
-
-
-
-
-#--------------------loading existing models, buffer, parameters-------------------------
-
-try:
-    print("loading buffer...")
-    with open('data', 'rb') as file:
-        dict = pickle.load(file)
-        algo.actor.eps_coor = dict['x_coor']
-        algo.replay_buffer = dict['buffer']
-        episode_rewards_all = dict['episode_rewards_all']
-        episode_steps_all = dict['episode_steps_all']
-        total_steps = dict['total_steps']
-        average_steps = dict['average_steps']
-        if len(algo.replay_buffer)>=explore_time and not Q_learning: Q_learning = True
-    print('buffer loaded, buffer length', len(algo.replay_buffer))
-
-    start_episode = len(episode_steps_all)
-
-except:
-    print("problem during loading buffer")
-
-try:
-    print("loading models...")
-    algo.actor.load_state_dict(torch.load('actor_model.pt'))
-    algo.critic.load_state_dict(torch.load('critic_model.pt'))
-    algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
-    print('models loaded')
-    testing(env_test, limit_eval, 10)
-except:
-    print("problem during loading models")
-
-#-------------------------------------------------------------------------------------
-log_file.write("experiment_started\n")
-total_steps = 0
-for i in range(start_episode, num_episodes):
+class Sine(nn.Module):
+    def forward(self, x):
+        return torch.sin(x)
     
-    rewards = []
-    state = env.reset()[0]
-    episode_steps = 0
+class FourierSeries(nn.Module):
+    def __init__(self, f_in, hidden_dim, f_out):
+        super().__init__()
 
-    #----------------------------pre-processing------------------------------
-    #---------------------1. decreases dependence on random seed: ---------------
-    if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
+
+        self.fft = nn.Sequential(
+            nn.Linear(f_in, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            Sine(),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, f_out)
+        )
+
+
+    def forward(self, x):
+        return self.fft(x)
         
-        #algo.replay_buffer.update_alpha()
 
-    for steps in range(1, limit_step+1):
-        episode_steps += 1
-        total_steps += 1
 
-        if (total_steps>=2500 and total_steps%2500==0): testing(env_test, limit_step=limit_eval, test_episodes=25, current_step=total_steps, save_log=True)
 
-        if total_steps>=explore_time and not Q_learning:
-            print("started training")
-            Q_learning = True
-            algo.train(64)
+# Define the actor network
+class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, device, hidden_dim=256, max_action=1.0):
+        super(Actor, self).__init__()
+        self.device = device
 
-        action = algo.select_action(state)
-        next_state, reward, done, truncated, info = env.step(action)
-        rewards.append(reward)
-        """
-        #==============counters issues with environments================
-        #(scores in report are not affected)
-        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
-        if env.spec.id.find("Ant") != -1:
-            if (next_state[1]<angle_limit): done = True
-            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
-        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
-        elif env.spec.id.find("Humanoid-") != -1:
-            reward += next_state[0]
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("LunarLander") != -1:
-            if reward==-100.0: reward = -50.0
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore") != -1:
-            if reward==-100.0: reward = -25.0
-        #===============================================================
-        """
+        self.net = nn.Sequential(
+            FourierSeries(state_dim, hidden_dim, action_dim),
+            nn.Tanh()
+        )
+
+        self.max_action = torch.mean(max_action).item()
+        self.scale = 0.2*self.max_action
+        self.lim = 2.5*self.scale
+        self.eps_coor = 0.0
+    
+    
+    def forward(self, state):
+        x = self.max_action*self.net(state)
+        return x
+
+    def action(self, state, mean=False):
+        with torch.no_grad():
+            x = self.forward(state)
+            if mean: return x
+            x += (self.scale*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        return x.clamp(-self.max_action, self.max_action)
+
+
         
-        algo.replay_buffer.add(state, action, reward, next_state, done)
-        if Q_learning: algo.train(tr_per_step)
-        state = next_state
-        if done or (not Q_learning and steps>=100): break
+class Critic(nn.Module):
+    def __init__(self, state_dim, action_dim, hidden_dim=256):
+        super(Critic, self).__init__()
+
+        qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        qB = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        qC = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+
+        self.nets = nn.ModuleList([qA, qB, qC])
+
+       
+    def forward(self, state, action, united=False):
+        x = torch.cat([state, action], -1)
+        xs = [net(x) for net in self.nets]
+        if not united: return xs
+        xs = torch.min(torch.stack(xs, dim=-1), dim=-1).values
+        return torch.mean(xs, dim=-1, keepdim=True)
 
 
-    episode_rewards_all.append(np.sum(rewards))
-    average_reward = np.mean(episode_rewards_all[-100:])
+# Define the actor-critic agent
+class Symphony(object):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07):
 
-    episode_steps_all.append(episode_steps)
-    average_steps = np.mean(episode_steps_all[-100:])
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r)
+
+        self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
+
+        self.critic = Critic(state_dim, action_dim, hidden_dim).to(device)
+        self.critic_target = copy.deepcopy(self.critic)
+
+        self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=3e-4)
+        self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=3e-4)
+
+        self.max_action = max_action
+        self.device = device
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.q_old_policy = 0.0
 
 
-    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps}")
+
+    def select_action(self, states, mean=False):
+        with torch.no_grad():
+            states = np.array(states)
+            state = torch.FloatTensor(states).reshape(-1,self.state_dim).to(self.device)
+            action = self.actor.action(state, mean=mean)
+        return action.cpu().data.numpy().flatten()
 
 
-    if Q_learning:
+    def train(self, tr_per_step=1):
+        #Update-To-Data (UTD)
+        for _ in range(tr_per_step):
+            state, action, reward, next_state, done = self.replay_buffer.sample()
+            #Sample Multiple Reuse (SMR)
+            for _ in range(3):
+                self.critic_update(state, action, reward, next_state, done)
+            self.actor_update(state)
+            
 
-        #--------------------saving-------------------------
-        if (i%5==0): 
-            torch.save(algo.actor.state_dict(), 'actor_model.pt')
-            torch.save(algo.critic.state_dict(), 'critic_model.pt')
-            torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
-            #print("saving... len = ", len(algo.replay_buffer))
-            with open('data', 'wb') as file:
-                pickle.dump({'buffer': algo.replay_buffer, 'eps_coor':algo.actor.eps_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
-            #print(" > done")
+
+    def critic_update(self, state, action, reward, next_state, done): 
+
+        with torch.no_grad():
+            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
+                target_param.data.copy_(0.997*target_param.data + 0.003*param)
+
+            next_action = self.actor(next_state)
+            q_next_target = self.critic_target(next_state, next_action, united=True)
+            q_value = reward +  (1-done) * 0.99 * q_next_target
+
+        qs = self.critic(state, action, united=False)
+        critic_loss = ReHE(q_value - qs[0]) + ReHE(q_value - qs[1]) + ReHE(q_value - qs[2])
+
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+        
+
+    def actor_update(self, state):
+        action = self.actor(state)
+        q_new_policy = self.critic(state, action, united=True)
+        actor_loss = -ReHaE(q_new_policy - self.q_old_policy)
+
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward(retain_graph=True)
+        self.actor_optimizer.step()
+
+        with torch.no_grad(): self.q_old_policy = q_new_policy.mean().detach()
+            
+
+
+
+class ReplayBuffer:
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
+        self.capacity, self.length, self.device = 512000, 0, device
+        self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
+        self.random = np.random.default_rng()
+        self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
+        self.fade_factor = fade_factor
+
+        self.states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
+        self.actions = torch.zeros((self.capacity, action_dim), dtype=torch.float32).to(device)
+        self.rewards = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
+        self.next_states = torch.zeros((self.capacity, state_dim), dtype=torch.float32).to(device)
+        self.dones = torch.zeros((self.capacity, 1), dtype=torch.float32).to(device)
+
+        self.alpha_base = lambda_r
+        self.rewards_sum = 0
+        self.delta_max = 3.0
+        self.alpha = lambda_r
+
+
+    def add(self, state, action, reward, next_state, done):
+        if self.length<self.capacity:
+            self.length += 1
+            self.indices.append(self.length-1)
+            self.indexes = np.array(self.indices)
+
+        idx = self.length-1
+        
+
+        #moving is life, stalling is dangerous
+        self.rewards_sum += reward/2*math.tanh(reward/2)
+        self.step += 1
+        alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
+        self.alpha = 0.9999*self.alpha + 0.0001*alpha
+        
+
+        delta = np.mean(np.abs(next_state - state)).item()
+        if self.step<=1000:
+            self.alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
+            if delta>self.delta_max: self.delta_max = delta
+            if self.step==1000: print('alpha = ', round(self.alpha, 3))
+
+        delta /= self.delta_max
+        reward += self.alpha*(0.5*math.tanh(math.log(2.0*delta))+0.5)
+        
+
+        self.states[idx,:] = torch.FloatTensor(state).to(self.device)
+        self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
+        self.rewards[idx,:] = torch.FloatTensor([reward]).to(self.device)
+        self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
+        self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
+
+        self.batch_size = min(max(128, self.length//500), 1024)
+
+
+        if self.length==self.capacity:
+            self.states = torch.roll(self.states, shifts=-1, dims=0)
+            self.actions = torch.roll(self.actions, shifts=-1, dims=0)
+            self.rewards = torch.roll(self.rewards, shifts=-1, dims=0)
+            self.next_states = torch.roll(self.next_states, shifts=-1, dims=0)
+            self.dones = torch.roll(self.dones, shifts=-1, dims=0)
+
+        
+
+
+    def generate_probs(self):
+        if self.step>self.capacity: return self.probs
+        def fade(norm_index): return np.tanh(self.fade_factor*norm_index**2) # linear / -> non-linear _/‾
+        weights = 1e-7*(fade(self.indexes/self.length))# weights are based solely on the history, highly squashed
+        self.probs = weights/np.sum(weights)
+        return self.probs
+
+
+    def sample(self):
+        indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
+
+        return (
+            self.states[indices],
+            self.actions[indices],
+            self.rewards[indices],
+            self.next_states[indices],
+            self.dones[indices]
+        )
+
+
+    def __len__(self):
+        return self.length
