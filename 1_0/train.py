@@ -19,7 +19,7 @@ option = 2
 
 
 explore_time = 1000
-tr_per_step = 4 # training per frame/step
+tr_per_step = 4 # actor's updates per frame/step
 limit_step = 1000 #max steps per episode
 limit_eval = 1000 #max steps per evaluation
 num_episodes = 1000000
@@ -30,7 +30,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 hidden_dim = 384
 max_action = 1.0
 fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-lambda_r = 0.03 # base alpha for moving is life, stalling is dangerous
+lambda_r = 0.02 # base alpha for moving is life, stalling is dangerous
 
 
 
@@ -232,7 +232,7 @@ for i in range(start_episode, num_episodes):
     average_steps = np.mean(episode_steps_all[-100:])
 
 
-    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps}")
+    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {round(algo.replay_buffer.alpha, 3)}")
 
 
     if Q_learning:
