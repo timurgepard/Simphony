@@ -41,10 +41,27 @@ def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
-class Sine(nn.Module):
+class ReSine(nn.Module):
     def forward(self, x):
-        return torch.sin(x)
-    
+        return F.leaky_relu(torch.sin(x), 0.1)
+
+class Input(nn.Module):
+    def __init__(self, f_in, hidden_dim):
+        super().__init__()
+
+        inA = nn.Linear(f_in, hidden_dim//3)
+        inB = nn.Linear(f_in, hidden_dim//3)
+        inC = nn.Linear(f_in, hidden_dim//3)
+
+        self.nets = nn.ModuleList([inA, inB, inC])
+
+
+    def forward(self, x):
+        xs = [net(x) for net in self.nets]
+        return torch.cat(xs, dim=-1)
+
+
+
 class FourierSeries(nn.Module):
     def __init__(self, f_in, hidden_dim, f_out):
         super().__init__()
@@ -54,8 +71,7 @@ class FourierSeries(nn.Module):
             nn.Linear(f_in, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
-            Sine(),
-            nn.LeakyReLU(0.1),
+            ReSine(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.Linear(hidden_dim, f_out)
         )
@@ -63,9 +79,6 @@ class FourierSeries(nn.Module):
 
     def forward(self, x):
         return self.fft(x)
-        
-
-
 
 # Define the actor network
 class Actor(nn.Module):
@@ -73,8 +86,10 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
+        self.input = Input(state_dim, hidden_dim)
+
         self.net = nn.Sequential(
-            FourierSeries(state_dim, hidden_dim, action_dim),
+            FourierSeries(hidden_dim, hidden_dim, action_dim),
             nn.Tanh()
         )
 
@@ -85,7 +100,8 @@ class Actor(nn.Module):
     
     
     def forward(self, state):
-        x = self.max_action*self.net(state)
+        x = self.input(state)
+        x = self.max_action*self.net(x)
         return x
 
     def action(self, state, mean=False):
@@ -101,19 +117,22 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Critic, self).__init__()
 
-        qA = FourierSeries(state_dim+action_dim, hidden_dim, 12)
-        qB = FourierSeries(state_dim+action_dim, hidden_dim, 12)
-        qC = FourierSeries(state_dim+action_dim, hidden_dim, 12)
+        #self.input = Input(state_dim+action_dim, hidden_dim)
+
+        qA = FourierSeries(state_dim+action_dim, hidden_dim, 3)
+        qB = FourierSeries(state_dim+action_dim, hidden_dim, 3)
+        qC = FourierSeries(state_dim+action_dim, hidden_dim, 3)
 
         self.nets = nn.ModuleList([qA, qB, qC])
 
        
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
+        #x = self.input(x)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        xs = torch.min(torch.stack(xs, dim=-1), dim=-1).values
-        return torch.mean(xs, dim=-1, keepdim=True)
+        return torch.min(torch.cat(xs, dim=-1), dim=-1, keepdim=True).values
+        #return torch.min(xs, dim=-1, keepdim=True).values
 
 
 # Define the actor-critic agent
@@ -194,7 +213,7 @@ class Symphony(object):
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
         self.capacity, self.length, self.device = 512000, 0, device
-        self.batch_size = min(max(128, self.length//500), 1024) #in order for sample to describe population
+        self.batch_size = min(max(128, self.length//250), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
@@ -207,6 +226,7 @@ class ReplayBuffer:
 
         self.alpha_base = lambda_r
         self.rewards_sum = 0
+        self.n_sigma = 0
         self.delta_max = 3.0
         self.alpha = lambda_r
 
@@ -221,15 +241,16 @@ class ReplayBuffer:
         
 
         #moving is life, stalling is dangerous
-        self.rewards_sum += reward/2*math.tanh(reward/2)
+        self.rewards_sum += (reward/2)*math.tanh(reward/2)
         self.step += 1
-        alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
-        self.alpha = 0.9999*self.alpha + 0.0001*alpha
+
+     
+        self.alpha = self.alpha_base*(10.0 + self.rewards_sum/self.step)/10.0
         
 
         delta = np.mean(np.abs(next_state - state)).item()
         if self.step<=1000:
-            self.alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
+            #self.alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
             if delta>self.delta_max: self.delta_max = delta
             if self.step==1000: print('alpha = ', round(self.alpha, 3))
 
@@ -243,7 +264,7 @@ class ReplayBuffer:
         self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
         self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
-        self.batch_size = min(max(128, self.length//500), 1024)
+        self.batch_size = min(max(128, self.length//250), 2048)
 
 
         if self.length==self.capacity:
