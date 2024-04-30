@@ -66,7 +66,7 @@ class Input(nn.Module):
         self.nets = nn.ModuleList([in1, in2, in3])
 
         self.out = nn.Sequential(
-            nn.Dropout(0.1),
+            nn.Dropout(0.2),
             nn.LayerNorm(3*hidden_dim)
         )
 
@@ -146,11 +146,9 @@ class Critic(nn.Module):
        
     def forward(self, state, action, united=False):
         x = torch.cat([state, action], -1)
-        #x = self.input(x)
         xs = [net(x) for net in self.nets]
         if not united: return xs
         return torch.min(torch.cat(xs, dim=-1), dim=-1, keepdim=True).values
-        #return torch.min(xs, dim=-1, keepdim=True).values
 
 
 # Define the actor-critic agent
