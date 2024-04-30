@@ -16,6 +16,7 @@ r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randin
 #r1, r2, r3 = 1216815315,  386391682,  1679869492
 #r1, r2, r3 = 3743773989,  91389447,  1496950741
 #r1, r2, r3 = 4192644313, 3075238889, 2575656344
+#r1, r2, r3 = 3587121837, 2866822428, 1005955078
 print(r1, ", ", r2, ", ", r3)
 torch.manual_seed(r1)
 np.random.seed(r2)
@@ -41,6 +42,15 @@ def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
+class Spike(nn.Module):
+    def __init__(self, hidden_dim):
+        super().__init__()
+        self.norm = nn.LayerNorm(hidden_dim)
+        self.drop = nn.Dropout(0.1)
+    def forward(self, x):
+        return self.drop(self.norm(x))
+
+
 class ReSine(nn.Module):
     def forward(self, x):
         return F.leaky_relu(torch.sin(x), 0.1)
@@ -49,16 +59,22 @@ class Input(nn.Module):
     def __init__(self, f_in, hidden_dim):
         super().__init__()
 
-        inA = nn.Linear(f_in, hidden_dim//3)
-        inB = nn.Linear(f_in, hidden_dim//3)
-        inC = nn.Linear(f_in, hidden_dim//3)
+        in1 = nn.Linear(f_in, hidden_dim)
+        in2 = nn.Linear(f_in, hidden_dim)
+        in3 = nn.Linear(f_in, hidden_dim)
 
-        self.nets = nn.ModuleList([inA, inB, inC])
+        self.nets = nn.ModuleList([in1, in2, in3])
+
+        self.out = nn.Sequential(
+            nn.Dropout(0.1),
+            nn.LayerNorm(3*hidden_dim)
+        )
 
 
     def forward(self, x):
         xs = [net(x) for net in self.nets]
-        return torch.cat(xs, dim=-1)
+        x = torch.cat(xs, dim=-1)
+        return self.out(x)
 
 
 
@@ -89,7 +105,7 @@ class Actor(nn.Module):
         self.input = Input(state_dim, hidden_dim)
 
         self.net = nn.Sequential(
-            FourierSeries(hidden_dim, hidden_dim, action_dim),
+            FourierSeries(3*hidden_dim, hidden_dim, action_dim),
             nn.Tanh()
         )
 
@@ -105,10 +121,12 @@ class Actor(nn.Module):
         return x
 
     def action(self, state, mean=False):
+        self.input.eval()
         with torch.no_grad():
             x = self.forward(state)
             if mean: return x
             x += (self.scale*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        self.input.train()
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -119,9 +137,9 @@ class Critic(nn.Module):
 
         #self.input = Input(state_dim+action_dim, hidden_dim)
 
-        qA = FourierSeries(state_dim+action_dim, hidden_dim, 3)
-        qB = FourierSeries(state_dim+action_dim, hidden_dim, 3)
-        qC = FourierSeries(state_dim+action_dim, hidden_dim, 3)
+        qA = FourierSeries(state_dim+action_dim, hidden_dim, 4)
+        qB = FourierSeries(state_dim+action_dim, hidden_dim, 4)
+        qC = FourierSeries(state_dim+action_dim, hidden_dim, 4)
 
         self.nets = nn.ModuleList([qA, qB, qC])
 
