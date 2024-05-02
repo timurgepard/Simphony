@@ -43,13 +43,17 @@ def ReHaE(error):
     return torch.abs(e)*torch.tanh(e)
 
 
+class Tanh(nn.Module):
+    def forward(self, x):
+        return torch.tanh(x)
+
 class Sine(nn.Module):
     def forward(self, x):
-        return torch.sin(2*x)/2
+        return torch.sin(x)
 
 class Cosine(nn.Module):
     def forward(self, x):
-        return torch.cos(2*x)/2
+        return torch.cos(x)
 
 class ReSine(nn.Module):
     def forward(self, x):
@@ -64,20 +68,26 @@ class FourierSeries(nn.Module):
 
         self.C = nn.Sequential(
             nn.Linear(f_in, internal_dim),
+            nn.Dropout(0.5),
             nn.LayerNorm(internal_dim),
+            Tanh(),
         )
         self.Asin_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
+            nn.Dropout(0.5),
             Sine(),
         )
         self.Acos_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
+            nn.Dropout(0.5),
             Cosine(),
         )
 
 
         self.ffw = nn.Sequential(
             nn.Linear(3*hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
             ReSine(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.Linear(hidden_dim, f_out)
