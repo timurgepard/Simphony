@@ -85,9 +85,10 @@ class FourierSeries(nn.Module):
             nn.Linear(internal_dim, internal_dim),
         )
 
+        self.lnorm = nn.LayerNorm(hidden_dim)
+
 
         self.ffw = nn.Sequential(
-            nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
             ReSine(),
             nn.Linear(hidden_dim, hidden_dim),
@@ -95,7 +96,9 @@ class FourierSeries(nn.Module):
         )
 
     def forward(self, x):
-        return self.ffw(torch.cat([self.C(x), self.Asin_b(x), self.Acos_b(x)], dim=-1))
+        x = torch.cat([self.C(x), self.Asin_b(x), self.Acos_b(x)], dim=-1)
+        x = self.lnorm(x) + torch.sin(2*x)/2
+        return self.ffw(x)
 
 
 
