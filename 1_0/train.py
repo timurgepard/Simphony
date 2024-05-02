@@ -102,7 +102,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
 
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor, lambda_r)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor, lambda_r, explore_time)
 
 
 
