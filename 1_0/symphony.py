@@ -42,14 +42,6 @@ def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
-class Drop_LN(nn.Module):
-    def __init__(self, hidden_dim):
-        super().__init__()
-        self.drop = nn.Dropout(0.05)
-        self.norm = nn.LayerNorm(hidden_dim)
-    def forward(self, x):
-        return self.norm(self.drop(x))
-
 
 class Sine(nn.Module):
     def forward(self, x):
@@ -67,38 +59,32 @@ class FourierSeries(nn.Module):
     def __init__(self, f_in, hidden_dim, f_out):
         super().__init__()
 
-        internal_dim = hidden_dim//3
+        self.hidden_dim = hidden_dim
+        internal_dim = hidden_dim
 
         self.C = nn.Sequential(
             nn.Linear(f_in, internal_dim),
             nn.LayerNorm(internal_dim),
-            nn.Linear(internal_dim, internal_dim),
         )
         self.Asin_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
             Sine(),
-            nn.Linear(internal_dim, internal_dim),
         )
         self.Acos_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
             Cosine(),
-            nn.Linear(internal_dim, internal_dim),
         )
-
-        self.lnorm = nn.LayerNorm(hidden_dim)
 
 
         self.ffw = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(3*hidden_dim, hidden_dim),
             ReSine(),
             nn.Linear(hidden_dim, hidden_dim),
             nn.Linear(hidden_dim, f_out)
         )
 
     def forward(self, x):
-        x = torch.cat([self.C(x), self.Asin_b(x), self.Acos_b(x)], dim=-1)
-        x = self.lnorm(x) + torch.sin(2*x)/2
-        return self.ffw(x)
+        return self.ffw(torch.cat([self.C(x), self.Asin_b(x), self.Acos_b(x)], dim=-1))
 
 
 
