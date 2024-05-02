@@ -42,48 +42,68 @@ def ReHaE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
-class Spike(nn.Module):
+class Drop_LN(nn.Module):
     def __init__(self, hidden_dim):
         super().__init__()
+        self.drop = nn.Dropout(0.05)
         self.norm = nn.LayerNorm(hidden_dim)
-        self.drop = nn.Dropout(0.1)
     def forward(self, x):
-        return self.drop(self.norm(x))
+        return self.norm(self.drop(x))
 
+
+class Sine(nn.Module):
+    def forward(self, x):
+        return torch.sin(2*x)/2
+
+class Cosine(nn.Module):
+    def forward(self, x):
+        return torch.cos(2*x)/2
 
 class ReSine(nn.Module):
     def forward(self, x):
         return F.leaky_relu(torch.sin(x), 0.1)
 
-class Input(nn.Module):
-    def __init__(self, f_in, hidden_dim):
-        super().__init__()
-
-        in1 = nn.Linear(f_in, hidden_dim)
-        in2 = nn.Linear(f_in, hidden_dim)
-        in3 = nn.Linear(f_in, hidden_dim)
-
-        self.nets = nn.ModuleList([in1, in2, in3])
-
-        self.out = nn.Sequential(
-            nn.Dropout(0.2),
-            nn.LayerNorm(3*hidden_dim)
-        )
-
-
-    def forward(self, x):
-        xs = [net(x) for net in self.nets]
-        x = torch.cat(xs, dim=-1)
-        return self.out(x)
-
-
-
 class FourierSeries(nn.Module):
     def __init__(self, f_in, hidden_dim, f_out):
         super().__init__()
 
+        internal_dim = hidden_dim//3
 
-        self.fft = nn.Sequential(
+        self.C = nn.Sequential(
+            nn.Linear(f_in, internal_dim),
+            nn.LayerNorm(internal_dim),
+            nn.Linear(internal_dim, internal_dim),
+        )
+        self.Asin_b = nn.Sequential(
+            nn.Linear(f_in, internal_dim),
+            Sine(),
+            nn.Linear(internal_dim, internal_dim),
+        )
+        self.Acos_b = nn.Sequential(
+            nn.Linear(f_in, internal_dim),
+            Cosine(),
+            nn.Linear(internal_dim, internal_dim),
+        )
+
+
+        self.ffw = nn.Sequential(
+            nn.LayerNorm(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            ReSine(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Linear(hidden_dim, f_out)
+        )
+
+    def forward(self, x):
+        return self.ffw(torch.cat([self.C(x), self.Asin_b(x), self.Acos_b(x)], dim=-1))
+
+
+
+class FourierSeriesRe(nn.Module):
+    def __init__(self, f_in, hidden_dim, f_out):
+        super().__init__()
+
+        self.ffw = nn.Sequential(
             nn.Linear(f_in, hidden_dim),
             nn.LayerNorm(hidden_dim),
             nn.Linear(hidden_dim, hidden_dim),
@@ -94,7 +114,7 @@ class FourierSeries(nn.Module):
 
 
     def forward(self, x):
-        return self.fft(x)
+        return self.ffw(x)
 
 # Define the actor network
 class Actor(nn.Module):
@@ -102,10 +122,8 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
         self.device = device
 
-        self.input = Input(state_dim, hidden_dim)
-
         self.net = nn.Sequential(
-            FourierSeries(3*hidden_dim, hidden_dim, action_dim),
+            FourierSeries(state_dim, hidden_dim, action_dim),
             nn.Tanh()
         )
 
@@ -116,17 +134,13 @@ class Actor(nn.Module):
     
     
     def forward(self, state):
-        x = self.input(state)
-        x = self.max_action*self.net(x)
-        return x
+        return self.max_action*self.net(state)
 
     def action(self, state, mean=False):
-        self.input.eval()
         with torch.no_grad():
             x = self.forward(state)
             if mean: return x
             x += (self.scale*torch.randn_like(x)).clamp(-self.lim, self.lim)
-        self.input.train()
         return x.clamp(-self.max_action, self.max_action)
 
 
@@ -135,11 +149,9 @@ class Critic(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim=256):
         super(Critic, self).__init__()
 
-        #self.input = Input(state_dim+action_dim, hidden_dim)
-
-        qA = FourierSeries(state_dim+action_dim, hidden_dim, 4)
-        qB = FourierSeries(state_dim+action_dim, hidden_dim, 4)
-        qC = FourierSeries(state_dim+action_dim, hidden_dim, 4)
+        qA = FourierSeriesRe(state_dim+action_dim, hidden_dim, 4)
+        qB = FourierSeriesRe(state_dim+action_dim, hidden_dim, 4)
+        qC = FourierSeriesRe(state_dim+action_dim, hidden_dim, 4)
 
         self.nets = nn.ModuleList([qA, qB, qC])
 
