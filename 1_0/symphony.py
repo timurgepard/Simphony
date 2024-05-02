@@ -68,18 +68,18 @@ class FourierSeries(nn.Module):
 
         self.C = nn.Sequential(
             nn.Linear(f_in, internal_dim),
-            nn.Dropout(0.5),
+            nn.Dropout(0.01),
             nn.LayerNorm(internal_dim),
             Tanh(),
         )
         self.Asin_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
-            nn.Dropout(0.5),
+            nn.Dropout(0.01),
             Sine(),
         )
         self.Acos_b = nn.Sequential(
             nn.Linear(f_in, internal_dim),
-            nn.Dropout(0.5),
+            nn.Dropout(0.01),
             Cosine(),
         )
 
@@ -164,9 +164,9 @@ class Critic(nn.Module):
 
 # Define the actor-critic agent
 class Symphony(object):
-    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07):
+    def __init__(self, state_dim, action_dim, hidden_dim, device, max_action=1.0, fade_factor=7.0, lambda_r=0.07, explore_time=1000):
 
-        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r)
+        self.replay_buffer = ReplayBuffer(state_dim, action_dim, device, fade_factor, lambda_r, explore_time)
 
         self.actor = Actor(state_dim, action_dim, device, hidden_dim, max_action=max_action).to(device)
 
@@ -238,7 +238,7 @@ class Symphony(object):
 
 
 class ReplayBuffer:
-    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07):
+    def __init__(self, state_dim, action_dim, device, fade_factor=7.0, lambda_r=0.07, explore_time=1000):
         self.capacity, self.length, self.device = 512000, 0, device
         self.batch_size = min(max(128, self.length//250), 2048) #in order for sample to describe population
         self.random = np.random.default_rng()
@@ -253,7 +253,7 @@ class ReplayBuffer:
 
         self.alpha_base = lambda_r
         self.rewards_sum = 0
-        self.n_sigma = 0
+        self.explore_time = explore_time
         self.delta_max = 3.0
         self.alpha = lambda_r
 
@@ -276,10 +276,10 @@ class ReplayBuffer:
         
 
         delta = np.mean(np.abs(next_state - state)).item()
-        if self.step<=1000:
+        if self.step<=self.explore_time:
             #self.alpha = self.alpha_base*(10.0+self.rewards_sum/self.step)/10.0
             if delta>self.delta_max: self.delta_max = delta
-            if self.step==1000: print('alpha = ', round(self.alpha, 3))
+            if self.step==self.explore_time: print('alpha = ', round(self.alpha, 3))
 
         delta /= self.delta_max
         reward += self.alpha*(0.5*math.tanh(math.log(2.0*delta))+0.5)
