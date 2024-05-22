@@ -4,18 +4,27 @@ import torch
 import torch.nn as nn
 import numpy as np
 import gymnasium as gym
+import random
 import pickle
 import time
 from symphony import Symphony, log_file
-import math
 
+
+#==============================================================================================
+#==============================================================================================
+#=========================================TRAINING=============================================
+#==============================================================================================
+#==============================================================================================
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 #global parameters
 # environment type. Different Environments have some details that you need to bear in mind.
-option = 2
+option = 3
+
+
+
 
 
 explore_time = 1000
@@ -28,9 +37,9 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 
 
 hidden_dim = 384
-max_action = 1.0
-fade_factor = 7 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
-lambda_r = 0.02 # base alpha for moving is life, stalling is dangerous
+fade_factor = 5 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
+tau = 0.005
+lambda_r = 0.02 # base alpha for moving is life
 
 
 
@@ -100,9 +109,9 @@ state_dim = env.observation_space.shape[0]
 action_dim= env.action_space.shape[0]
 
 print('action space high', env.action_space.high)
-max_action = max_action*torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else max_action*1.0
+max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else 1.0
 
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, fade_factor, lambda_r, explore_time)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, tau, fade_factor, lambda_r, explore_time)
 
 
 
@@ -119,6 +128,14 @@ def testing(env, limit_step, test_episodes, current_step=0, save_log=False):
     episode_return = []
 
     for test_episode in range(test_episodes):
+
+        #---------------------1. decreases dependence on random seed: ---------------
+        r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
+        #print(r1, ", ", r2, ", ", r3)
+        torch.manual_seed(r1)
+        np.random.seed(r2)
+        random.seed(r3)
+
         state = env.reset()[0]
         rewards = []
 
@@ -141,13 +158,12 @@ def testing(env, limit_step, test_episodes, current_step=0, save_log=False):
 
 
 #--------------------loading existing models, buffer, parameters-------------------------
-
+total_steps = 0
 
 try:
     print("loading buffer...")
     with open('data', 'rb') as file:
         dict = pickle.load(file)
-        algo.actor.eps_coor = dict['eps_coor']
         algo.replay_buffer = dict['buffer']
         episode_rewards_all = dict['episode_rewards_all']
         episode_steps_all = dict['episode_steps_all']
@@ -173,18 +189,25 @@ except:
 
 #-------------------------------------------------------------------------------------
 log_file.write("experiment_started\n")
-total_steps = 0
+
 for i in range(start_episode, num_episodes):
-    
+
+    #----------------------------pre-processing------------------------------
+    #---------------------1. decreases dependence on random seed: ---------------
+    r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
+    #print(r1, ", ", r2, ", ", r3)
+    torch.manual_seed(r1)
+    np.random.seed(r2)
+    random.seed(r3)
+    #-----------------2. initialize Actor with random weights during exploration------------
+    if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
+    #--------------------2. CPU/GPU cooling ------------------
+    if Q_learning: time.sleep(0.5)
+        
     rewards = []
     state = env.reset()[0]
     episode_steps = 0
 
-    #----------------------------pre-processing------------------------------
-    #---------------------1. decreases dependence on random seed: ---------------
-    if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
-        
-        #algo.replay_buffer.update_alpha()
 
     for steps in range(1, limit_step+1):
         episode_steps += 1
@@ -192,33 +215,15 @@ for i in range(start_episode, num_episodes):
 
         if (total_steps>=2500 and total_steps%2500==0): testing(env_test, limit_step=limit_eval, test_episodes=25, current_step=total_steps, save_log=True)
 
-        if total_steps>=explore_time and not Q_learning:
+        if total_steps>=1000 and not Q_learning:
             print("started training")
             Q_learning = True
             algo.train(64)
+ 
 
         action = algo.select_action(state)
         next_state, reward, done, truncated, info = env.step(action)
         rewards.append(reward)
-        """
-        #==============counters issues with environments================
-        #(scores in report are not affected)
-        #Ant environment has problem when Ant is flipped upside down and it is not detected (rotation around x is not checked), we can check to save some time:
-        if env.spec.id.find("Ant") != -1:
-            if (next_state[1]<angle_limit): done = True
-            if next_state[1]>1e-3: reward += math.log(next_state[1]) #punish for getting unstable.
-        #Humanoid-v4 environment does not care about torso being in upright position, this is to make torso little bit upright (z↑)
-        elif env.spec.id.find("Humanoid-") != -1:
-            reward += next_state[0]
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("LunarLander") != -1:
-            if reward==-100.0: reward = -50.0
-        #fear less of falling/terminating. This Environments has a problem when agent stalls due to the high risks prediction. We decrease risks to speed up training.
-        elif env.spec.id.find("BipedalWalkerHardcore") != -1:
-            if reward==-100.0: reward = -25.0
-        #===============================================================
-        """
-        
         algo.replay_buffer.add(state, action, reward, next_state, done)
         if Q_learning: algo.train(tr_per_step)
         state = next_state
@@ -244,6 +249,6 @@ for i in range(start_episode, num_episodes):
             torch.save(algo.critic_target.state_dict(), 'critic_target_model.pt')
             #print("saving... len = ", len(algo.replay_buffer))
             with open('data', 'wb') as file:
-                pickle.dump({'buffer': algo.replay_buffer, 'eps_coor':algo.actor.eps_coor, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
+                pickle.dump({'buffer': algo.replay_buffer, 'episode_rewards_all':episode_rewards_all, 'episode_steps_all':episode_steps_all, 'total_steps': total_steps, 'average_steps': average_steps}, file)
             #print(" > done")
         
