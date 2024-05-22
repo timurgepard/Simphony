@@ -37,12 +37,12 @@ class LogFile(object):
 log_name = "history_" + str(r1) + "_" + str(r2) + "_" + str(r3) + ".log"
 log_file = LogFile(log_name)
 
-#Rectified Hubber Error Loss Function
+#Rectified Huber Symmetric Error Loss Function
 def ReHSE(error):
     ae = torch.abs(error).mean()
     return ae*torch.tanh(ae)
 
-#Rectified Hubber Assymetric Error Loss Function
+#Rectified Huber Asymmetric Error Loss Function
 def ReHAE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
@@ -208,10 +208,6 @@ class Symphony(object):
 
     def update(self, state, action, reward, next_state, done):
 
-        with torch.no_grad():
-            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
-                target_param.data.copy_(self.tau_*target_param.data + self.tau*param)
-
         #Actor Update
 
         next_action = self.actor(next_state)
@@ -233,7 +229,11 @@ class Symphony(object):
         self.critic_optimizer.step()
 
 
-        with torch.no_grad(): self.q_next_old_policy = q_next_target.detach().mean()
+        with torch.no_grad():
+            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
+                target_param.data.copy_(self.tau_*target_param.data + self.tau*param)
+                
+            self.q_next_old_policy = q_next_target.detach().mean()
             
 
             
