@@ -158,8 +158,7 @@ class Critic(nn.Module):
         xs = [net(x) for net in self.nets]
         if not united: return xs
         x = torch.cat(xs, dim=-1)
-        x = torch.sort(x, dim=-1).values
-        return torch.mean(x[...,:-38], dim=-1, keepdim=True)
+        return torch.mean(x, dim=-1, keepdim=True)
 
 
 # Define the actor-critic agent
@@ -243,7 +242,7 @@ class Symphony(object):
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, capacity, fade_factor=7.0, lambda_r=0.02, explore_time=1000):
         self.capacity, self.length, self.device = capacity, 0, device
-        self.batch_size = min(max(64, self.length//250), 384) #in order for sample to describe population
+        self.batch_size = min(max(64, self.length//250), 768) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
@@ -294,7 +293,7 @@ class ReplayBuffer:
         self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
         self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
-        self.batch_size = min(max(64, self.length//250), 384)
+        self.batch_size = min(max(64, self.length//250), 768)
 
 
         if self.length==self.capacity:
