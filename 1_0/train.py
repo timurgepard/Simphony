@@ -7,7 +7,7 @@ import gymnasium as gym
 import random
 import pickle
 import time
-from symphony import Symphony, log_file
+from symphony_classic import Symphony, log_file
 
 
 #==============================================================================================
@@ -28,8 +28,8 @@ option = 3
 
 
 explore_time = 1000
-tr_per_step = 4 # actor's updates per frame/step
-limit_step = 1000 #max steps per episode
+tr_per_step = 3 # actor's updates per frame/step
+limit_step = 384 #max steps per episode
 limit_eval = 1000 #max steps per evaluation
 num_episodes = 1000000
 start_episode = 0 #number for the identification of the current episode
@@ -37,9 +37,10 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 
 
 hidden_dim = 384
-fade_factor = 5 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
+capacity = 96000
+fade_factor = 10 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
 tau = 0.005
-lambda_r = 0.02 # base alpha for moving is life
+lambda_r = 0.01 # base alpha for moving is life
 
 
 
@@ -50,7 +51,7 @@ if option == -1:
 
 elif option == 0:
     env = gym.make('MountainCarContinuous-v0')
-    env_test = gym.make('MountainCarContinuous-v0', render_mode="human")
+    env_test = gym.make('MountainCarContinuous-v0')
 
 elif option == 1:
     env = gym.make('HalfCheetah-v4')
@@ -78,13 +79,12 @@ elif option == 5:
     #less aggressive movements -> faster learning but less final speed
 
 elif option == 6:
-    limit_step = int(1e+6)
     env = gym.make('BipedalWalker-v3')
     env_test = gym.make('BipedalWalker-v3')
 
 elif option == 7:
     env = gym.make('BipedalWalkerHardcore-v3')
-    env_test = gym.make('BipedalWalkerHardcore-v3', render_mode="human")
+    env_test = gym.make('BipedalWalkerHardcore-v3')
 
 elif option == 8:
     limit_step = 700
@@ -111,7 +111,7 @@ action_dim= env.action_space.shape[0]
 print('action space high', env.action_space.high)
 max_action = torch.FloatTensor(env.action_space.high).to(device) if env.action_space.is_bounded() else 1.0
 
-algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, tau, fade_factor, lambda_r, explore_time)
+algo = Symphony(state_dim, action_dim, hidden_dim, device, max_action, tau, capacity, fade_factor, lambda_r, explore_time)
 
 
 
@@ -183,7 +183,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_eval, 10)
+    #testing(env_test, limit_eval, 10)
 except:
     print("problem during loading models")
 
@@ -191,6 +191,10 @@ except:
 log_file.write("experiment_started\n")
 
 for i in range(start_episode, num_episodes):
+
+    rewards = []
+    state = env.reset()[0]
+    episode_steps = 0
 
     #----------------------------pre-processing------------------------------
     #---------------------1. decreases dependence on random seed: ---------------
@@ -203,10 +207,17 @@ for i in range(start_episode, num_episodes):
     if not Q_learning and total_steps<explore_time: algo.actor.apply(init_weights)
     #--------------------2. CPU/GPU cooling ------------------
     if Q_learning: time.sleep(0.5)
+    #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
+    """
+    action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
+    for steps in range(0, 2):
+        next_state, reward, done, info, _ = env.step(action)
+        rewards.append(reward)
+        state = next_state
+    """
+    
         
-    rewards = []
-    state = env.reset()[0]
-    episode_steps = 0
+
 
 
     for steps in range(1, limit_step+1):
@@ -218,7 +229,7 @@ for i in range(start_episode, num_episodes):
         if total_steps>=1000 and not Q_learning:
             print("started training")
             Q_learning = True
-            algo.train(64)
+
  
 
         action = algo.select_action(state)
@@ -231,13 +242,15 @@ for i in range(start_episode, num_episodes):
 
 
     episode_rewards_all.append(np.sum(rewards))
-    average_reward = np.mean(episode_rewards_all[-100:])
+    average_reward = np.mean(episode_rewards_all[-50:])
 
     episode_steps_all.append(episode_steps)
-    average_steps = np.mean(episode_steps_all[-100:])
+    average_steps = np.mean(episode_steps_all[-50:])
+
+    #if Q_learning: limit_step = int(average_steps + average_steps/3)
 
 
-    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {round(algo.replay_buffer.alpha, 3)}")
+    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {1}")#{round(algo.actor.ffw[0].ffw[2].var_scale.item(), 3)}")
 
 
     if Q_learning:
