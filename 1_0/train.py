@@ -7,7 +7,7 @@ import gymnasium as gym
 import random
 import pickle
 import time
-from symphony_classic import Symphony, log_file
+from symphony import Symphony, log_file
 
 
 #==============================================================================================
@@ -236,7 +236,7 @@ for i in range(start_episode, num_episodes):
         next_state, reward, done, truncated, info = env.step(action)
         rewards.append(reward)
         algo.replay_buffer.add(state, action, reward, next_state, done)
-        if Q_learning: algo.train(tr_per_step)
+        if Q_learning: algo.train(tr_per_step+algo.replay_buffer.length//25600)
         state = next_state
         if done or (not Q_learning and steps>=100): break
 
