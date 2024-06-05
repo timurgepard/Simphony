@@ -28,8 +28,8 @@ option = 3
 
 
 explore_time = 1000
-tr_per_step = 3 # actor's updates per frame/step
-limit_step = 384 #max steps per episode
+tr_per_step = 5 # actor's updates per frame/step
+limit_step = 1000 #max steps per episode
 limit_eval = 1000 #max steps per evaluation
 num_episodes = 1000000
 start_episode = 0 #number for the identification of the current episode
@@ -37,7 +37,7 @@ episode_rewards_all, episode_steps_all, test_rewards, Q_learning = [], [], [], F
 
 
 hidden_dim = 384
-capacity = 96000
+capacity = 307000
 fade_factor = 10 # fading memory factor, 7 -remembers ~30% of the last transtions before gradual forgetting, 1 - linear forgetting, 10 - ~50% of transitions, 100 - ~70% of transitions.
 tau = 0.005
 lambda_r = 0.01 # base alpha for moving is life
@@ -183,7 +183,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    #testing(env_test, limit_eval, 10)
+    testing(env_test, limit_eval, 10)
 except:
     print("problem during loading models")
 
@@ -208,14 +208,7 @@ for i in range(start_episode, num_episodes):
     #--------------------2. CPU/GPU cooling ------------------
     if Q_learning: time.sleep(0.5)
     #-----------3. slighlty random initial configuration as in OpenAI Pendulum----
-    """
-    action = 0.3*max_action.to('cpu').numpy()*np.random.uniform(-1.0, 1.0, size=action_dim)
-    for steps in range(0, 2):
-        next_state, reward, done, info, _ = env.step(action)
-        rewards.append(reward)
-        state = next_state
-    """
-    
+
         
 
 
@@ -236,21 +229,21 @@ for i in range(start_episode, num_episodes):
         next_state, reward, done, truncated, info = env.step(action)
         rewards.append(reward)
         algo.replay_buffer.add(state, action, reward, next_state, done)
-        if Q_learning: algo.train(tr_per_step+algo.replay_buffer.length//25600)
+        if Q_learning: algo.train(tr_per_step)
         state = next_state
         if done or (not Q_learning and steps>=100): break
 
 
     episode_rewards_all.append(np.sum(rewards))
-    average_reward = np.mean(episode_rewards_all[-50:])
+    average_reward = np.mean(episode_rewards_all[-100:])
 
     episode_steps_all.append(episode_steps)
-    average_steps = np.mean(episode_steps_all[-50:])
+    average_steps = np.mean(episode_steps_all[-100:])
 
-    #if Q_learning: limit_step = int(average_steps + average_steps/3)
+    #if Q_learning and limit_step<1000: limit_step = int(average_steps + average_steps/3)
 
 
-    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {1}")#{round(algo.actor.ffw[0].ffw[2].var_scale.item(), 3)}")
+    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {1}")#{round(algo.actor.ffw[0].ffw[1].a[0].item(), 3)} | beta = {round(algo.actor.ffw[0].ffw[1].b[0].item(), 3)}")
 
 
     if Q_learning:
