@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # random seeds
 r1, r2, r3 = random.randint(0,2**32-1), random.randint(0,2**32-1), random.randint(0,2**32-1)
-#r1, r2, r3 = 2534946416, 201514968, 855242544
+#r1, r2, r3 = 1872159886, 737275283, 2629959584
 print(r1, ", ", r2, ", ", r3)
 torch.manual_seed(r1)
 np.random.seed(r2)
@@ -47,15 +47,31 @@ def ReHAE(error):
     e = error.mean()
     return torch.abs(e)*torch.tanh(e)
 
+class Spike(nn.Module):
+    def __init__(self, hidden_dim=256):
+        super(Spike, self).__init__()
+
+        self.LN = nn.LayerNorm(hidden_dim)
+        self.a = nn.Parameter(data=torch.ones(hidden_dim)*1e+3)
+        self.b = nn.Parameter(data=torch.ones(hidden_dim)*1e+3)
+
+    def forward(self, x):
+        x = self.LN(x)
+        a = 1e-3 + torch.abs(self.a)
+        b = 1e-3 + torch.abs(self.b)
+        return torch.where(x>=0, a*torch.tanh(x/a), b*torch.tanh(x/b))
 
 class ReSine(nn.Module):
     def __init__(self, hidden_dim=256):
         super(ReSine, self).__init__()
-        self.scale = nn.Parameter(data=torch.rand(hidden_dim))
+        self.scale = nn.Parameter(data=torch.randn(1))
     def forward(self, x):
-        scale = 1.0 + 0.5*torch.tanh(self.scale)
-        x = scale*torch.sin(x/scale)
-        return F.prelu(x, 0.1*scale)
+        #scale = 0.8 + 0.1*torch.tanh(self.scale)
+        x = 0.7*torch.sin(x/0.7)
+        return F.leaky_relu(x, 0.07)
+        #scale = 1.0 + 0.5*torch.tanh(self.scale)
+        #x = scale*torch.sin(x/scale)
+        #return F.prelu(x, 0.1*scale)
   
 
 
@@ -74,7 +90,8 @@ class InplaceDropout(nn.Module):
             self.drop_indices.append(indices)
 
     def forward(self, x):
-        x[..., self.drop_indices[random.randint(0,self.num_cycles-1)]] = 0.0
+        self.step += 1
+        x[..., self.drop_indices[random.randint(0, self.num_cycles-1)]] = 0.0
         return x
 
 
@@ -84,13 +101,10 @@ class FeedForward(nn.Module):
 
         self.ffw = nn.Sequential(
             nn.Linear(f_in, 384),
-            InplaceDropout(384, 24),
-            nn.LayerNorm(384),
+            Spike(384),
             nn.Linear(384, 256),
-            InplaceDropout(256, 16),
             ReSine(256),
             nn.Linear(256, 128),
-            InplaceDropout(128, 8),
             nn.Linear(128, f_out),
         )
 
@@ -123,7 +137,7 @@ class Actor(nn.Module):
         )
 
         self.max_action = torch.mean(max_action).item()
-        self.scale = 0.05*self.max_action
+        self.scale = 0.2*self.max_action
         self.lim = 2.5*self.scale
     
     
@@ -133,8 +147,10 @@ class Actor(nn.Module):
     
     def action(self, state, mean=False):
         with torch.no_grad(): x = self.forward(state)
-        x += (self.scale*torch.randn_like(x)).clamp(-self.lim, self.lim)
-        return x.clamp(-self.max_action, self.max_action)
+        return x
+        #if mean: return x
+        #x += (self.scale*torch.randn_like(x)).clamp(-self.lim, self.lim)
+        #return x.clamp(-self.max_action, self.max_action)
 
 
 
@@ -157,8 +173,8 @@ class Critic(nn.Module):
         x = torch.cat([state, action], -1)
         xs = [net(x) for net in self.nets]
         if not united: return xs
-        x = torch.cat(xs, dim=-1)
-        return torch.mean(x, dim=-1, keepdim=True)
+        xs = torch.stack([torch.mean(x, dim=-1, keepdim=True) for x in xs], dim=-1)
+        return torch.min(xs, dim=-1).values
 
 
 # Define the actor-critic agent
@@ -175,7 +191,7 @@ class Symphony(object):
 
         self.critic_optimizer = optim.AdamW(self.critic.parameters(), lr=5e-4)
         self.actor_optimizer = optim.AdamW(self.actor.parameters(), lr=5e-4)
-        
+
 
         self.max_action = max_action
         self.tau = tau
@@ -205,6 +221,33 @@ class Symphony(object):
 
     def update(self, state, action, reward, next_state, done):
 
+        
+        with torch.no_grad():
+            for target_param, param in zip(self.critic_target.parameters(), self.critic.parameters()):
+                target_param.data.copy_(self.tau_*target_param.data + self.tau*param)
+
+        #Actor Update 
+        next_action = self.actor(next_state)
+        q_next_target = self.critic_target(next_state, next_action, united=True)
+        actor_loss = -ReHAE(q_next_target - self.q_next_old_policy)
+
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+        
+        #Critic Update 
+        q_value = reward +  (1-done) * 0.99 * q_next_target.detach()
+        qs = self.critic(state, action, united=False)
+        critic_loss = ReHSE(q_value - qs[0]) + ReHSE(q_value - qs[1]) + ReHSE(q_value - qs[2]) #+ self.lambda_r*cl3_loss
+
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+
+        with torch.no_grad(): self.q_next_old_policy = q_next_target.detach().mean()
+        
+        """
         next_action = self.actor(next_state)
 
         with torch.no_grad():
@@ -229,6 +272,9 @@ class Symphony(object):
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
+        """
+
+        
 
             
 
@@ -242,7 +288,7 @@ class Symphony(object):
 class ReplayBuffer:
     def __init__(self, state_dim, action_dim, device, capacity, fade_factor=7.0, lambda_r=0.02, explore_time=1000):
         self.capacity, self.length, self.device = capacity, 0, device
-        self.batch_size = min(max(64, self.length//250), 768) #in order for sample to describe population
+        self.batch_size = min(max(32, self.length//100), 2*768) #in order for sample to describe population
         self.random = np.random.default_rng()
         self.indices, self.indexes, self.probs, self.step = [], np.array([]), np.array([]), 0
         self.fade_factor = fade_factor
@@ -268,24 +314,6 @@ class ReplayBuffer:
 
         idx = self.length-1
         
-        """
-        #moving is life, stalling is dangerous
-        self.rewards_sum += (reward/2)*math.tanh(reward/2)
-        self.step += 1
-
-        self.alpha = self.alpha_base*(10.0 + self.rewards_sum/self.step)/10.0
-        
-
-        delta = np.mean(np.abs(next_state - state)).item()
-        if self.step<=int(self.explore_time):
-            if delta>self.delta_max: self.delta_max = delta
-            if self.step==int(self.explore_time): print('delta_max = ', round(self.delta_max, 3))
-
-        delta /= self.delta_max
-        reward += self.alpha*(0.5*math.tanh(math.log(2.0*delta))+0.5)
-        """
-        
-        
 
         self.states[idx,:] = torch.FloatTensor(state).to(self.device)
         self.actions[idx,:] = torch.FloatTensor(action).to(self.device)
@@ -293,7 +321,7 @@ class ReplayBuffer:
         self.next_states[idx,:] = torch.FloatTensor(next_state).to(self.device)
         self.dones[idx,:] = torch.FloatTensor([done]).to(self.device)
 
-        self.batch_size = min(max(64, self.length//250), 768)
+        self.batch_size = min(max(32, self.length//100), 2*768)
 
 
         if self.length==self.capacity:
@@ -316,6 +344,7 @@ class ReplayBuffer:
 
     def sample(self):
         indices = self.random.choice(self.indexes, p=self.generate_probs(), size=self.batch_size)
+        #indices = random.choices(self.indexes, k=self.batch_size)
 
         return (
             self.states[indices],
