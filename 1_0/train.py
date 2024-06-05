@@ -183,7 +183,7 @@ try:
     algo.critic.load_state_dict(torch.load('critic_model.pt'))
     algo.critic_target.load_state_dict(torch.load('critic_target_model.pt'))
     print('models loaded')
-    testing(env_test, limit_eval, 10)
+    #testing(env_test, limit_eval, 10)
 except:
     print("problem during loading models")
 
@@ -243,7 +243,7 @@ for i in range(start_episode, num_episodes):
     #if Q_learning and limit_step<1000: limit_step = int(average_steps + average_steps/3)
 
 
-    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {1}")#{round(algo.actor.ffw[0].ffw[1].a[0].item(), 3)} | beta = {round(algo.actor.ffw[0].ffw[1].b[0].item(), 3)}")
+    print(f"Ep {i}: Rtrn = {episode_rewards_all[-1]:.2f} | ep steps = {episode_steps} | total_steps = {total_steps} | alpha = {round(algo.actor.ffw[0].ffw[1].a[0].item(), 3)} | beta = {round(algo.actor.ffw[0].ffw[1].b[0].item(), 3)}")
 
 
     if Q_learning:
