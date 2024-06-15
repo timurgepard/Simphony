@@ -3,7 +3,7 @@
 
 
 Acknowledgements: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
-This algorithm was created in 3 years through my mom's and sister's financial support.
+This algorithm was created in 3 years with Jesus directing me and through my mom's and sister's financial support.
 I want to say thanks to the "University of Szeged" for providing me facilities to continue the research
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
