@@ -2,7 +2,8 @@
 
 
 
-Acknowledgements: This algorithm was created in 3 years through my mom's and sister's financial support.
+Acknowledgements: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
+This algorithm was created in 3 years through my mom's and sister's financial support.
 
 I wrote a short book with a careful explanation: https://www.amazon.com/dp/B0CKYWHPF5
 email: timur.ishuov@gmail.com
