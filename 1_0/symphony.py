@@ -174,9 +174,9 @@ class ActorCritic(jit.ScriptModule):
         self.a_max = nn.Parameter(data= max_action, requires_grad=False)
 
 
-        self.qA = FeedForward(state_dim+action_dim, 256)
-        self.qB = FeedForward(state_dim+action_dim, 256)
-        self.qC = FeedForward(state_dim+action_dim, 256)
+        self.qA = FeedForward(state_dim+action_dim, 128)
+        self.qB = FeedForward(state_dim+action_dim, 128)
+        self.qC = FeedForward(state_dim+action_dim, 128)
 
         self.qnets = nn.ModuleList([self.qA, self.qB, self.qC])
 
@@ -231,7 +231,7 @@ class Symphony(object):
         self.max_action = max_action
       
 
-        self.tau = 0.001
+        self.tau = 0.005
         self.tau_ = 1.0 - self.tau
         self.state_dim = state_dim
         self.action_dim = action_dim
@@ -263,7 +263,7 @@ class Symphony(object):
 
         state, action, reward, next_state, done = self.replay_buffer.sample()
         self.nets_optimizer.zero_grad(set_to_none=True)
-        k = 0.5
+        k = 1/5
 
 
         with torch.no_grad():
@@ -330,11 +330,11 @@ class ReplayBuffer:
 
 
     def add(self, state, action, reward, next_state, done):
-
-        repeat = 3 if done else 1
+        if done: self.dones[-2:] = torch.tensor([done], dtype=torch.float32, device=self.device)
+        repeat = 5 if done else 1
         for _ in range(repeat):
             if self.length<self.capacity: self.length += 1
-                
+
             idx = self.length-1
             
             self.states[idx,:] = torch.tensor(state, dtype=torch.float32, device=self.device)
