@@ -7,6 +7,7 @@ https://github.com/timurgepard/Symphony-S2
 Paper: https://arxiv.org/abs/2512.10477
 
 
+![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
 
 Acknowledgements: My heart belongs to Jesus. Jesus is Love. Whoever seeks Him, finds Him...
@@ -36,7 +37,6 @@ ver 2.0 includes:
 
 
 
-![image](https://github.com/timurgepard/Simphony/assets/13238473/864a23b6-a2c8-4e83-b69c-497c4cd662c1)
 
 All agents can be further improved if training continues, but only episode numbers were concerned.
 
