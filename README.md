@@ -3,8 +3,8 @@
 Initially, Symphony was intended for high Sample Efficiency. You could seed it from Openai Gym Leaderboard.
 But after years of deep research, I made Symphony-S2, which also focuses on Human like motions without jerks for practical applications.
 https://github.com/timurgepard/Symphony-S2
-Paper: https://arxiv.org/abs/2512.10477
 
+Paper: https://arxiv.org/abs/2512.10477
 
 
 
